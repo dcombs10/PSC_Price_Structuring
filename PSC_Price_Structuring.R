@@ -136,6 +136,7 @@ PSC_Product_Details <- data.table(PSC_Product_Details)
 PSC_Sales <- merge(x = PSC_Sales, y = PSC_Product_Details[ , c("PRODUCT_NO", "CAT_NO")], by = "PRODUCT_NO", all.x = T)
 toc()
 
+##################################################################
 # Separate Missouri (MO) and Illinois (IL) branches
 
 PSC_Sales_MO <- PSC_Sales %>% filter(!SELL.BR %in% c(6, 10, 15))
@@ -164,6 +165,7 @@ PSC_Sales_Grouped <- PSC_Sales %>%
             QTY = sum(QTY, na.rm = T),
             GM_Perc = (Revenue - Costs) / Costs)
 toc()
+##################################################################
 
 # Add GM_Perc to PSC_Sales:
 PSC_Sales$GM_Perc <- (PSC_Sales$EXT_SALES - PSC_Sales$EXT_COST_REB) / PSC_Sales$EXT_SALES
@@ -178,10 +180,15 @@ CUST_DECILE_Revs <- PSC_Sales %>%
 
 # Perform Price Structuring Analytics
 
-## Weighted Average Price Structuring
+## Weighted Average Price Structuring (v1 - group by CUST_DECILE first)
 PSC_Sales <- PSC_Sales %>%
   group_by(CAT_NO, CUST_DECILE) %>% 
-  mutate(weighted_GM = weighted_mean(GM_Perc, QTY))
+  mutate(weighted_GM1 = weighted_mean(GM_Perc, QTY))
+
+## Weighted Average Price Structuring (v2 - perform weighting irrespective of CUST_DECILE)
+PSC_Sales <- PSC_Sales %>%
+  group_by(CAT_NO) %>% 
+  mutate(weighted_GM2 = weighted_mean(GM_Perc, QTY))
 
 ## Best Customer Approach
 PSC_orig <- PSC_Sales %>% select(CUST_DECILE, CAT_NO, QTY, GM_Perc)
@@ -190,57 +197,75 @@ PSC_floor <- merge(PSC_agg, PSC_orig)
 PSC_floor <- PSC_floor %>% group_by(CUST_DECILE, CAT_NO) %>% summarise(floorGM = max(GM_Perc))
 temp_floor <- PSC_floor # store replica of PSC_floor to compare to after the following changes
 
-# PSC_floor <- PSC_floor %>%
-#   group_by(CAT_NO) %>% 
-#   mutate(maxGM = max(floorGM, na.rm = T),
-#          maxDecile = CUST_DECILE[which.max(floorGM)])
+tic("Bubbling floorGMs")
+PSC_floor <- group_by(PSC_floor, CAT_NO)
 
-# PSC_floor$floorGM <- if_else(maxGM > floorGM & maxDecile < CUST_DECILE, maxGM, floorGM)
+PSC_floor <- mutate(PSC_floor, lag = lag(floorGM))
 
-Product_Categories <- as.character(unique(PSC_floor$CAT_NO))
+while (any(PSC_floor$floorGM < PSC_floor$lag, na.rm = T)) {
+  PSC_floor <- mutate(PSC_floor, floorGM = ifelse(!is.na(lag), ifelse(floorGM < lag, lag, floorGM), floorGM))
+  PSC_floor <- mutate(PSC_floor, lag = lag(floorGM))
+}
+toc()
 
-for(k in seq_along(Product_Categories)) {
-  subdata <- subset(PSC_floor, CAT_NO == Product_Categories[k])
-  deciles <- sort(unique(subdata$CUST_DECILE))
-  
-  for(k in 2:length(deciles)) {
-    if(subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k], "floorGM"] < subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k-1], "floorGM"]) {
-      subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k], "floorGM"] <- subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k-1], "floorGM"]
-    }
-  }
-  if (!exists("temp")) {
-    temp <- subdata
-  } else {
-    temp <- rbind(temp, subdata) 
-  }
+
+# Product_Categories <- as.character(unique(PSC_floor$CAT_NO))
+
+# for(k in seq_along(Product_Categories)) {
+# subdata <- subset(PSC_floor, CAT_NO == Product_Categories[k])
+# deciles <- sort(unique(subdata$CUST_DECILE))
+
+# for(k in 2:length(deciles)) {
+#   if(subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k], "floorGM"] < subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k-1], "floorGM"]) {
+#     subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k], "floorGM"] <- subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k-1], "floorGM"]
+#   }
+# }
+# if (!exists("temp")) {
+#   temp <- subdata
+# } else {
+#   temp <- rbind(temp, subdata) 
+# }
+# }
+
+names(PSC_floor)[3] <- "BCA_GM"
+PSC_floor$lag <- NULL
+
+PSC_Sales <- merge(x = PSC_Sales, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
+
+# Count the number of transactions above and below each Price Structuring Approach Output
+
+tally_above <- function(x, y) {
+  if_else(!is.na(x) & !is.na(y),
+          if_else(x > y, 1, 0),
+          0)
 }
 
+tally_below <- function(x, y) {
+  if_else(!is.na(x) & !is.na(y),
+          if_else(x < y, 1, 0),
+          0)
+}
 
+PSC_Sales$weighted_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM)
 
+PSC_Sales$weighted_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM)
 
-df1 <- subset(df, CAT_NO == "A")
-!duplicated(df1$CUST_DECILE)
-as.numeric(with(df, c(TRUE, -nrow(df))))
+PSC_Sales$weighted_GM2_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM2)
 
+PSC_Sales$weighted_GM2_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM2)
 
-if(PSC_floor[PSC_floor$CUST_DECILE == "Decile 1", "floorGM"] > PSC_floor[PSC_floor$CUST_DECILE == "Decile 2", "floorGM"]) {
-  PSC_floor[PSC_floor$CUST_DECILE == "Decile 2", "floorGM"] <- PSC_floor[PSC_floor$CUST_DECILE == "Decile 1", "floorGM"]
-}
-if(PSC_floor[PSC_floor$CUST_DECILE == "Decile 2", "floorGM"] > PSC_floor[PSC_floor$CUST_DECILE == "Decile 3", "floorGM"]) {
-  PSC_floor[PSC_floor$CUST_DECILE == "Decile 3", "floorGM"] <- PSC_floor[PSC_floor$CUST_DECILE == "Decile 2", "floorGM"]
-}
-if(PSC_floor[PSC_floor$CUST_DECILE == "Decile 3", "floorGM"] > PSC_floor[PSC_floor$CUST_DECILE == "Decile 4", "floorGM"]) {
-  PSC_floor[PSC_floor$CUST_DECILE == "Decile 4", "floorGM"] <- PSC_floor[PSC_floor$CUST_DECILE == "Decile 3", "floorGM"]
-}
-if(PSC_floor[PSC_floor$CUST_DECILE == "Decile 4", "floorGM"] > PSC_floor[PSC_floor$CUST_DECILE == "Decile 5", "floorGM"]) {
-  PSC_floor[PSC_floor$CUST_DECILE == "Decile 5", "floorGM"] <- PSC_floor[PSC_floor$CUST_DECILE == "Decile 4", "floorGM"]
-}
-if(PSC_floor[PSC_floor$CUST_DECILE == "Decile 5", "floorGM"] > PSC_floor[PSC_floor$CUST_DECILE == "Decile 6", "floorGM"]) {
-  PSC_floor[PSC_floor$CUST_DECILE == "Decile 6", "floorGM"] <- PSC_floor[PSC_floor$CUST_DECILE == "Decile 5", "floorGM"]
-}
-if(PSC_floor[PSC_floor$CUST_DECILE == "Decile 6", "floorGM"] > PSC_floor[PSC_floor$CUST_DECILE == "Decile 7", "floorGM"]) {
-  PSC_floor[PSC_floor$CUST_DECILE == "Decile 7", "floorGM"] <- PSC_floor[PSC_floor$CUST_DECILE == "Decile 6", "floorGM"]
-}
+PSC_Sales$BCA_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$BCA_GM)
+
+PSC_Sales$BCA_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$BCA_GM)
+
+PSC_tallies <- PSC_Sales %>% 
+  group_by(CAT_NO, CUST_DECILE) %>% 
+  summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
+            weighted_GM_belowCount = sum(weighted_GM_belowCount),
+            weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
+            weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
+            BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
+            BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
 ######################################################################################################
 
