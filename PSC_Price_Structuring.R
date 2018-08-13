@@ -136,36 +136,6 @@ PSC_Product_Details <- data.table(PSC_Product_Details)
 PSC_Sales <- merge(x = PSC_Sales, y = PSC_Product_Details[ , c("PRODUCT_NO", "CAT_NO")], by = "PRODUCT_NO", all.x = T)
 toc()
 
-##################################################################
-# Separate Missouri (MO) and Illinois (IL) branches
-
-PSC_Sales_MO <- PSC_Sales %>% filter(!SELL.BR %in% c(6, 10, 15))
-PSC_Sales_IL <- PSC_Sales %>% filter(SELL.BR %in% c(6, 10, 15))
-
-
-tic("Group data for analyses")
-PSC_MO_Grouped <- PSC_Sales_MO %>% 
-  group_by(CAT_NO, CUST_DECILE) %>% 
-  summarise(Revenue = sum(EXT_SALES, na.rm = T),
-            Costs = sum(EXT_COST_REB, na.rm = T),
-            QTY = sum(QTY, na.rm = T),
-            GM_Perc = (Revenue - Costs) / Costs)
-
-PSC_IL_Grouped <- PSC_Sales_IL %>% 
-  group_by(CAT_NO, CUST_DECILE) %>% 
-  summarise(Revenue = sum(EXT_SALES, na.rm = T),
-            Costs = sum(EXT_COST_REB, na.rm = T),
-            QTY = sum(QTY, na.rm = T),
-            GM_Perc = (Revenue - Costs) / Costs)
-
-PSC_Sales_Grouped <- PSC_Sales %>% 
-  group_by(CAT_NO, CUST_DECILE) %>% 
-  summarise(Revenue = sum(EXT_SALES, na.rm = T),
-            Costs = sum(EXT_COST_REB, na.rm = T),
-            QTY = sum(QTY, na.rm = T),
-            GM_Perc = (Revenue - Costs) / Costs)
-toc()
-##################################################################
 
 # Add GM_Perc to PSC_Sales:
 PSC_Sales$GM_Perc <- (PSC_Sales$EXT_SALES - PSC_Sales$EXT_COST_REB) / PSC_Sales$EXT_SALES
@@ -177,6 +147,16 @@ CUST_DECILE_Revs <- PSC_Sales %>%
   summarise(Revenue = sum(EXT_SALES, na.rm = T),
             n = n()) %>% 
   arrange(desc(Revenue))
+
+##################################################################
+# Separate Missouri (MO) and Illinois (IL) branches
+
+PSC_Sales_MO <- PSC_Sales %>% filter(!SELL.BR %in% c(6, 10, 15))
+PSC_Sales_IL <- PSC_Sales %>% filter(SELL.BR %in% c(6, 10, 15))
+
+##################################################################
+
+###################################
 
 # Perform Price Structuring Analytics
 
@@ -208,25 +188,6 @@ while (any(PSC_floor$floorGM < PSC_floor$lag, na.rm = T)) {
 }
 toc()
 
-
-# Product_Categories <- as.character(unique(PSC_floor$CAT_NO))
-
-# for(k in seq_along(Product_Categories)) {
-# subdata <- subset(PSC_floor, CAT_NO == Product_Categories[k])
-# deciles <- sort(unique(subdata$CUST_DECILE))
-
-# for(k in 2:length(deciles)) {
-#   if(subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k], "floorGM"] < subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k-1], "floorGM"]) {
-#     subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k], "floorGM"] <- subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k-1], "floorGM"]
-#   }
-# }
-# if (!exists("temp")) {
-#   temp <- subdata
-# } else {
-#   temp <- rbind(temp, subdata) 
-# }
-# }
-
 names(PSC_floor)[3] <- "BCA_GM"
 PSC_floor$lag <- NULL
 
@@ -246,9 +207,9 @@ tally_below <- function(x, y) {
           0)
 }
 
-PSC_Sales$weighted_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM)
+PSC_Sales$weighted_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM1)
 
-PSC_Sales$weighted_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM)
+PSC_Sales$weighted_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM1)
 
 PSC_Sales$weighted_GM2_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM2)
 
@@ -259,7 +220,7 @@ PSC_Sales$BCA_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$BCA_GM)
 PSC_Sales$BCA_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$BCA_GM)
 
 PSC_tallies <- PSC_Sales %>% 
-  group_by(CAT_NO, CUST_DECILE) %>% 
+  group_by(CAT_NO) %>% 
   summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
             weighted_GM_belowCount = sum(weighted_GM_belowCount),
             weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
@@ -267,8 +228,284 @@ PSC_tallies <- PSC_Sales %>%
             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
-######################################################################################################
+PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
 
+PSC_Sales <- PSC_Sales %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
+                                  -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
+                                  -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
+
+names(PSC_Sales)
+names(PSC_Sales)[18] <- "weighted_GM_aboveCount"
+names(PSC_Sales)[19] <- "weighted_GM_belowCount"
+names(PSC_Sales)[20] <- "weighted_GM2_aboveCount"
+names(PSC_Sales)[21] <- "weighted_GM2_belowCount"
+names(PSC_Sales)[22] <- "BCA_GM_aboveCount"
+names(PSC_Sales)[23] <- "BCA_GM_belowCount"
+
+# Add in decile GMs for reference
+
+PSC_Sales <- PSC_Sales %>% 
+  group_by(CAT_NO) %>% 
+  mutate(minGM = min(GM_Perc, na.rm = T),
+         maxGM = max(GM_Perc, na.rm = T),
+         GM10 = quantile(GM_Perc, 0.10, na.rm = T),
+         GM20 = quantile(GM_Perc, 0.20, na.rm = T),
+         GM25 = quantile(GM_Perc, 0.25, na.rm = T),
+         GM30 = quantile(GM_Perc, 0.30, na.rm = T),
+         GM40 = quantile(GM_Perc, 0.40, na.rm = T),
+         GM50 = quantile(GM_Perc, 0.50, na.rm = T),
+         GM60 = quantile(GM_Perc, 0.60, na.rm = T),
+         GM65 = quantile(GM_Perc, 0.65, na.rm = T),
+         GM70 = quantile(GM_Perc, 0.70, na.rm = T),
+         GM75 = quantile(GM_Perc, 0.75, na.rm = T),
+         GM80 = quantile(GM_Perc, 0.80, na.rm = T),
+         GM90 = quantile(GM_Perc, 0.90, na.rm = T),
+         GM95 = quantile(GM_Perc, 0.95, na.rm = T)) %>% 
+  arrange(desc(CAT_NO), CUST_DECILE)
+
+PSC_Sales <- PSC_Sales %>% 
+  group_by(CAT_NO) %>% 
+  mutate(CAT_Revenue = sum(EXT_SALES, na.rm = T))
+
+No_CATs <- ungroup(PSC_Sales) %>% filter(CAT_NO == "")
+No_CATs <- unique(No_CATs$PRODUCT_NO) # 492 unique products without CAT_NOs, corresponding to ~2300 transactions
+unique(PSC_Sales$PRODUCT_NO) # 46003 unique products; ~675K transactions identified have CAT_NOs... but this does not tie out
+
+###################################
+
+# Perform Price Structuring Analytics - Missouri Sales
+
+## Weighted Average Price Structuring (v1 - group by CUST_DECILE first)
+PSC_Sales_MO <- PSC_Sales_MO %>%
+  group_by(CAT_NO, CUST_DECILE) %>% 
+  mutate(weighted_GM1 = weighted_mean(GM_Perc, QTY))
+
+## Weighted Average Price Structuring (v2 - perform weighting irrespective of CUST_DECILE)
+PSC_Sales_MO <- PSC_Sales_MO %>%
+  group_by(CAT_NO) %>% 
+  mutate(weighted_GM2 = weighted_mean(GM_Perc, QTY))
+
+## Best Customer Approach
+PSC_orig <- PSC_Sales_MO %>% select(CUST_DECILE, CAT_NO, QTY, GM_Perc)
+PSC_agg <- aggregate(QTY ~ CUST_DECILE + CAT_NO, PSC_orig, max)
+PSC_floor <- merge(PSC_agg, PSC_orig)
+PSC_floor <- PSC_floor %>% group_by(CUST_DECILE, CAT_NO) %>% summarise(floorGM = max(GM_Perc))
+temp_floor <- PSC_floor # store replica of PSC_floor to compare to after the following changes
+
+tic("Bubbling floorGMs")
+PSC_floor <- group_by(PSC_floor, CAT_NO)
+
+PSC_floor <- mutate(PSC_floor, lag = lag(floorGM))
+
+while (any(PSC_floor$floorGM < PSC_floor$lag, na.rm = T)) {
+  PSC_floor <- mutate(PSC_floor, floorGM = ifelse(!is.na(lag), ifelse(floorGM < lag, lag, floorGM), floorGM))
+  PSC_floor <- mutate(PSC_floor, lag = lag(floorGM))
+}
+toc()
+
+names(PSC_floor)[3] <- "BCA_GM"
+PSC_floor$lag <- NULL
+
+PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
+
+# Count the number of transactions above and below each Price Structuring Approach Output
+
+tally_above <- function(x, y) {
+  if_else(!is.na(x) & !is.na(y),
+          if_else(x > y, 1, 0),
+          0)
+}
+
+tally_below <- function(x, y) {
+  if_else(!is.na(x) & !is.na(y),
+          if_else(x < y, 1, 0),
+          0)
+}
+
+PSC_Sales_MO$weighted_GM_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM1)
+
+PSC_Sales_MO$weighted_GM_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM1)
+
+PSC_Sales_MO$weighted_GM2_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM2)
+
+PSC_Sales_MO$weighted_GM2_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM2)
+
+PSC_Sales_MO$BCA_GM_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$BCA_GM)
+
+PSC_Sales_MO$BCA_GM_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$BCA_GM)
+
+PSC_tallies <- PSC_Sales_MO %>% 
+  group_by(CAT_NO) %>% 
+  summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
+            weighted_GM_belowCount = sum(weighted_GM_belowCount),
+            weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
+            weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
+            BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
+            BCA_GM_belowCount = sum(BCA_GM_belowCount))
+
+PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+
+PSC_Sales_MO <- PSC_Sales_MO %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
+                                  -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
+                                  -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
+
+names(PSC_Sales_MO)
+names(PSC_Sales_MO)[18] <- "weighted_GM_aboveCount"
+names(PSC_Sales_MO)[19] <- "weighted_GM_belowCount"
+names(PSC_Sales_MO)[20] <- "weighted_GM2_aboveCount"
+names(PSC_Sales_MO)[21] <- "weighted_GM2_belowCount"
+names(PSC_Sales_MO)[22] <- "BCA_GM_aboveCount"
+names(PSC_Sales_MO)[23] <- "BCA_GM_belowCount"
+
+# Add in decile GMs for reference
+
+PSC_Sales_MO <- PSC_Sales_MO %>% 
+  group_by(CAT_NO) %>% 
+  mutate(minGM = min(GM_Perc, na.rm = T),
+         maxGM = max(GM_Perc, na.rm = T),
+         GM10 = quantile(GM_Perc, 0.10, na.rm = T),
+         GM20 = quantile(GM_Perc, 0.20, na.rm = T),
+         GM25 = quantile(GM_Perc, 0.25, na.rm = T),
+         GM30 = quantile(GM_Perc, 0.30, na.rm = T),
+         GM40 = quantile(GM_Perc, 0.40, na.rm = T),
+         GM50 = quantile(GM_Perc, 0.50, na.rm = T),
+         GM60 = quantile(GM_Perc, 0.60, na.rm = T),
+         GM65 = quantile(GM_Perc, 0.65, na.rm = T),
+         GM70 = quantile(GM_Perc, 0.70, na.rm = T),
+         GM75 = quantile(GM_Perc, 0.75, na.rm = T),
+         GM80 = quantile(GM_Perc, 0.80, na.rm = T),
+         GM90 = quantile(GM_Perc, 0.90, na.rm = T),
+         GM95 = quantile(GM_Perc, 0.95, na.rm = T)) %>% 
+  arrange(desc(CAT_NO), CUST_DECILE)
+
+PSC_Sales_MO <- PSC_Sales_MO %>% 
+  group_by(CAT_NO) %>% 
+  mutate(CAT_Revenue = sum(EXT_SALES, na.rm = T))
+
+###################################
+
+# Perform Price Structuring Analytics - Illinois Sales
+
+## Weighted Average Price Structuring (v1 - group by CUST_DECILE first)
+PSC_Sales_IL <- PSC_Sales_IL %>%
+  group_by(CAT_NO, CUST_DECILE) %>% 
+  mutate(weighted_GM1 = weighted_mean(GM_Perc, QTY))
+
+## Weighted Average Price Structuring (v2 - perform weighting irrespective of CUST_DECILE)
+PSC_Sales_IL <- PSC_Sales_IL %>%
+  group_by(CAT_NO) %>% 
+  mutate(weighted_GM2 = weighted_mean(GM_Perc, QTY))
+
+## Best Customer Approach
+PSC_orig <- PSC_Sales_IL %>% select(CUST_DECILE, CAT_NO, QTY, GM_Perc)
+PSC_agg <- aggregate(QTY ~ CUST_DECILE + CAT_NO, PSC_orig, max)
+PSC_floor <- merge(PSC_agg, PSC_orig)
+PSC_floor <- PSC_floor %>% group_by(CUST_DECILE, CAT_NO) %>% summarise(floorGM = max(GM_Perc))
+temp_floor <- PSC_floor # store replica of PSC_floor to compare to after the following changes
+
+tic("Bubbling floorGMs")
+PSC_floor <- group_by(PSC_floor, CAT_NO)
+
+PSC_floor <- mutate(PSC_floor, lag = lag(floorGM))
+
+while (any(PSC_floor$floorGM < PSC_floor$lag, na.rm = T)) {
+  PSC_floor <- mutate(PSC_floor, floorGM = ifelse(!is.na(lag), ifelse(floorGM < lag, lag, floorGM), floorGM))
+  PSC_floor <- mutate(PSC_floor, lag = lag(floorGM))
+}
+toc()
+
+names(PSC_floor)[3] <- "BCA_GM"
+PSC_floor$lag <- NULL
+
+PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
+
+# Count the number of transactions above and below each Price Structuring Approach Output
+
+tally_above <- function(x, y) {
+  if_else(!is.na(x) & !is.na(y),
+          if_else(x > y, 1, 0),
+          0)
+}
+
+tally_below <- function(x, y) {
+  if_else(!is.na(x) & !is.na(y),
+          if_else(x < y, 1, 0),
+          0)
+}
+
+PSC_Sales_IL$weighted_GM_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM1)
+
+PSC_Sales_IL$weighted_GM_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM1)
+
+PSC_Sales_IL$weighted_GM2_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM2)
+
+PSC_Sales_IL$weighted_GM2_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM2)
+
+PSC_Sales_IL$BCA_GM_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$BCA_GM)
+
+PSC_Sales_IL$BCA_GM_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$BCA_GM)
+
+PSC_tallies <- PSC_Sales_IL %>% 
+  group_by(CAT_NO) %>% 
+  summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
+            weighted_GM_belowCount = sum(weighted_GM_belowCount),
+            weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
+            weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
+            BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
+            BCA_GM_belowCount = sum(BCA_GM_belowCount))
+
+PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+
+PSC_Sales_IL <- PSC_Sales_IL %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
+                                        -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
+                                        -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
+
+names(PSC_Sales_IL)
+names(PSC_Sales_IL)[18] <- "weighted_GM_aboveCount"
+names(PSC_Sales_IL)[19] <- "weighted_GM_belowCount"
+names(PSC_Sales_IL)[20] <- "weighted_GM2_aboveCount"
+names(PSC_Sales_IL)[21] <- "weighted_GM2_belowCount"
+names(PSC_Sales_IL)[22] <- "BCA_GM_aboveCount"
+names(PSC_Sales_IL)[23] <- "BCA_GM_belowCount"
+
+# Add in decile GMs for reference
+
+PSC_Sales_IL <- PSC_Sales_IL %>% 
+  group_by(CAT_NO) %>% 
+  mutate(minGM = min(GM_Perc, na.rm = T),
+         maxGM = max(GM_Perc, na.rm = T),
+         GM10 = quantile(GM_Perc, 0.10, na.rm = T),
+         GM20 = quantile(GM_Perc, 0.20, na.rm = T),
+         GM25 = quantile(GM_Perc, 0.25, na.rm = T),
+         GM30 = quantile(GM_Perc, 0.30, na.rm = T),
+         GM40 = quantile(GM_Perc, 0.40, na.rm = T),
+         GM50 = quantile(GM_Perc, 0.50, na.rm = T),
+         GM60 = quantile(GM_Perc, 0.60, na.rm = T),
+         GM65 = quantile(GM_Perc, 0.65, na.rm = T),
+         GM70 = quantile(GM_Perc, 0.70, na.rm = T),
+         GM75 = quantile(GM_Perc, 0.75, na.rm = T),
+         GM80 = quantile(GM_Perc, 0.80, na.rm = T),
+         GM90 = quantile(GM_Perc, 0.90, na.rm = T),
+         GM95 = quantile(GM_Perc, 0.95, na.rm = T)) %>% 
+  arrange(desc(CAT_NO), CUST_DECILE)
+
+PSC_Sales_IL <- PSC_Sales_IL %>% 
+  group_by(CAT_NO) %>% 
+  mutate(CAT_Revenue = sum(EXT_SALES, na.rm = T))
+
+############################################################################################
+############################################################################################
+############################################################################################
+############################################################################################
+############################################################################################
+############################################################################################
+############################################################################################
+############################################################################################
+############################################################################################
+############################################################################################
+############################################################################################
+
+# OLD CODE - GRAVEYARD
 
 # Filter dataset again to remove extreme GM outliers
 PSC_GM_Outliers <- PSC_Sales_Grouped %>% filter(GM <= 0 | GM_Perc >= 100) # 4,637 extreme Gross Margin outliers. These may want to be examined at a later time
@@ -632,3 +869,22 @@ PSC_Demo_Grouped %>% filter(GM_Perc > 0.38) %>%
        x = "Revenue ($)",
        y = "Gross Margin %") +
   ylim(0, 0.6)
+
+
+# Product_Categories <- as.character(unique(PSC_floor$CAT_NO))
+
+# for(k in seq_along(Product_Categories)) {
+# subdata <- subset(PSC_floor, CAT_NO == Product_Categories[k])
+# deciles <- sort(unique(subdata$CUST_DECILE))
+
+# for(k in 2:length(deciles)) {
+#   if(subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k], "floorGM"] < subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k-1], "floorGM"]) {
+#     subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k], "floorGM"] <- subdata[subdata$CUST_DECILE == subdata$CUST_DECILE[k-1], "floorGM"]
+#   }
+# }
+# if (!exists("temp")) {
+#   temp <- subdata
+# } else {
+#   temp <- rbind(temp, subdata) 
+# }
+# }
