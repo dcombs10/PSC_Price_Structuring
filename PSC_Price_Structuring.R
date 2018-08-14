@@ -85,13 +85,13 @@ tic("Structure Sales Data")
 str(PSC_Sales)
 
 # Character classes
-PSC_Sales$CUST_NO <- as.character(PSC_Sales$CUST_NO)
-PSC_Sales$PRODUCT_NO <- as.character(PSC_Sales$PRODUCT_NO)
-PSC_Sales$ORD_TYP <- as.character(PSC_Sales$ORD_TYP)
-PSC_Sales$WRT_BY <- as.character(PSC_Sales$WRT_BY)
-PSC_Sales$SELL.BR <- as.character(PSC_Sales$SELL.BR)
-PSC_Sales$ZIP <- as.character(PSC_Sales$ZIP)
-PSC_Sales$TYPE <- as.character(PSC_Sales$TYPE)
+PSC_Sales$CUST_NO <- str_trim(as.character(PSC_Sales$CUST_NO), side = both)
+PSC_Sales$PRODUCT_NO <- str_trim(as.character(PSC_Sales$PRODUCT_NO), side = both)
+PSC_Sales$ORD_TYP <- str_trim(as.character(PSC_Sales$ORD_TYP), side = both)
+PSC_Sales$WRT_BY <- str_trim(as.character(PSC_Sales$WRT_BY), side = both)
+PSC_Sales$SELL.BR <- str_trim(as.character(PSC_Sales$SELL.BR), side = both)
+PSC_Sales$ZIP <- str_trim(as.character(PSC_Sales$ZIP), side = both)
+PSC_Sales$TYPE <- str_trim(as.character(PSC_Sales$TYPE), side = both)
 
 # Numeric classes
 PSC_Sales$QTY <- as.numeric(as.character(PSC_Sales$QTY))
@@ -110,10 +110,10 @@ tic("Structure Product Data")
 str(PSC_Product_Details)
 PSC_Product_Details <- PSC_Product_Details %>%
   select(PROD_NO, CAT_NO, CAT_DESC)
-PSC_Product_Details$PROD_NO <- as.character(PSC_Product_Details$PROD_NO)
+PSC_Product_Details$PROD_NO <- str_trim(as.character(PSC_Product_Details$PROD_NO), side = both)
 names(PSC_Product_Details)[1] <- "PRODUCT_NO"
-PSC_Product_Details$CAT_NO <- as.character(PSC_Product_Details$CAT_NO)
-PSC_Product_Details$CAT_DESC <- as.character(PSC_Product_Details$CAT_DESC)
+PSC_Product_Details$CAT_NO <- str_trim(as.character(PSC_Product_Details$CAT_NO), side = both)
+PSC_Product_Details$CAT_DESC <- str_trim(as.character(PSC_Product_Details$CAT_DESC), side = both)
 toc()
 
 tic("Assign Customer Ranks")
@@ -492,6 +492,13 @@ PSC_Sales_IL <- PSC_Sales_IL %>%
 PSC_Sales_IL <- PSC_Sales_IL %>% 
   group_by(CAT_NO) %>% 
   mutate(CAT_Revenue = sum(EXT_SALES, na.rm = T))
+
+
+ungroup(PSC_Sales) %>% filter(year(DATE) == 2018, is.na(CAT_NO)) %>% summarise(Rev = sum(EXT_SALES, na.rm = T),
+                                                                               n = n())
+
+temp <- ungroup(PSC_Sales) %>% filter(year(DATE) == 2018, is.na(CAT_NO))
+unique(temp$PRODUCT_NO)
 
 ############################################################################################
 ############################################################################################
