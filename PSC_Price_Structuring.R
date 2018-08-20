@@ -59,17 +59,29 @@ weighted_mean <- function(x, w, ..., na.rm = TRUE){
   weighted.mean(x, w, ...)
 }
 
+tally_above <- function(x, y) {
+  if_else(!is.na(x) & !is.na(y),
+          if_else(x > y, 1, 0),
+          0)
+}
+
+tally_below <- function(x, y) {
+  if_else(!is.na(x) & !is.na(y),
+          if_else(x < y, 1, 0),
+          0)
+}
+
 tic("Import PSC Sales Data")
 path <- "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Sales Data"
 files_list <- list.files(path)
 
 for (file in files_list) {
   if(!exists("PSC_Sales")) {
-    PSC_Sales <- read.csv(paste0(path, "/", file), header = T, sep = "|")
+    PSC_Sales <- read.csv(paste0(path, "/", file), header = T, sep = "|", stringsAsFactors = F)
   }
   
   if(exists("PSC_Sales")) {
-    temp <- read.csv(paste0(path, "/", file), header = T, sep = "|")
+    temp <- read.csv(paste0(path, "/", file), header = T, sep = "|", stringsAsFactors = F)
     PSC_Sales <- rbind(PSC_Sales, temp)
     rm(temp)
   }
@@ -77,7 +89,8 @@ for (file in files_list) {
 toc()
 
 tic("Import PSC Product Data")
-PSC_Product_Details <- read.csv("C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/phocas_product.txt", sep = "|")
+PSC_Product_Details <- read.csv("C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/phocas_product.txt", sep = "|",
+                                stringsAsFactors = F, quote = "")
 toc()
 
 tic("Structure Sales Data")
@@ -85,13 +98,13 @@ tic("Structure Sales Data")
 str(PSC_Sales)
 
 # Character classes
-PSC_Sales$CUST_NO <- str_trim(as.character(PSC_Sales$CUST_NO), side = both)
-PSC_Sales$PRODUCT_NO <- str_trim(as.character(PSC_Sales$PRODUCT_NO), side = both)
-PSC_Sales$ORD_TYP <- str_trim(as.character(PSC_Sales$ORD_TYP), side = both)
-PSC_Sales$WRT_BY <- str_trim(as.character(PSC_Sales$WRT_BY), side = both)
-PSC_Sales$SELL.BR <- str_trim(as.character(PSC_Sales$SELL.BR), side = both)
-PSC_Sales$ZIP <- str_trim(as.character(PSC_Sales$ZIP), side = both)
-PSC_Sales$TYPE <- str_trim(as.character(PSC_Sales$TYPE), side = both)
+PSC_Sales$CUST_NO <- str_trim(as.character(PSC_Sales$CUST_NO), side = "both")
+PSC_Sales$PRODUCT_NO <- str_trim(as.character(PSC_Sales$PRODUCT_NO), side = "both")
+PSC_Sales$ORD_TYP <- str_trim(as.character(PSC_Sales$ORD_TYP), side = "both")
+PSC_Sales$WRT_BY <- str_trim(as.character(PSC_Sales$WRT_BY), side = "both")
+PSC_Sales$SELL.BR <- str_trim(as.character(PSC_Sales$SELL.BR), side = "both")
+PSC_Sales$ZIP <- str_trim(as.character(PSC_Sales$ZIP), side = "both")
+PSC_Sales$TYPE <- str_trim(as.character(PSC_Sales$TYPE), side = "both")
 
 # Numeric classes
 PSC_Sales$QTY <- as.numeric(as.character(PSC_Sales$QTY))
@@ -110,10 +123,10 @@ tic("Structure Product Data")
 str(PSC_Product_Details)
 PSC_Product_Details <- PSC_Product_Details %>%
   select(PROD_NO, CAT_NO, CAT_DESC)
-PSC_Product_Details$PROD_NO <- str_trim(as.character(PSC_Product_Details$PROD_NO), side = both)
+PSC_Product_Details$PROD_NO <- str_trim(as.character(PSC_Product_Details$PROD_NO), side = "both")
 names(PSC_Product_Details)[1] <- "PRODUCT_NO"
-PSC_Product_Details$CAT_NO <- str_trim(as.character(PSC_Product_Details$CAT_NO), side = both)
-PSC_Product_Details$CAT_DESC <- str_trim(as.character(PSC_Product_Details$CAT_DESC), side = both)
+PSC_Product_Details$CAT_NO <- str_trim(as.character(PSC_Product_Details$CAT_NO), side = "both")
+PSC_Product_Details$CAT_DESC <- str_trim(as.character(PSC_Product_Details$CAT_DESC), side = "both")
 toc()
 
 tic("Assign Customer Ranks")
@@ -124,6 +137,8 @@ temp <- PSC_Sales %>%
 
 Rev_ECDF <- ecdf(temp$Rev)
 temp$CUST_RANK <- Rev_ECDF(temp$Rev)
+temp <- data.table(temp)
+PSC_Sales <- data.table(PSC_Sales)
 PSC_Sales <- merge(x = PSC_Sales, y = temp[ , c("CUST_NO", "CUST_RANK")], by = "CUST_NO", all.x = T)
 rm(temp)
 
@@ -195,18 +210,6 @@ PSC_Sales <- merge(x = PSC_Sales, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO")
 
 # Count the number of transactions above and below each Price Structuring Approach Output
 
-tally_above <- function(x, y) {
-  if_else(!is.na(x) & !is.na(y),
-          if_else(x > y, 1, 0),
-          0)
-}
-
-tally_below <- function(x, y) {
-  if_else(!is.na(x) & !is.na(y),
-          if_else(x < y, 1, 0),
-          0)
-}
-
 PSC_Sales$weighted_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM1)
 
 PSC_Sales$weighted_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM1)
@@ -267,10 +270,12 @@ PSC_Sales <- PSC_Sales %>%
   group_by(CAT_NO) %>% 
   mutate(CAT_Revenue = sum(EXT_SALES, na.rm = T))
 
-No_CATs <- ungroup(PSC_Sales) %>% filter(CAT_NO == "")
+No_CATs <- ungroup(PSC_Sales) %>% filter(is.na(CAT_NO), year(DATE) == 2018)
+ungroup(PSC_Sales) %>% filter(is.na(CAT_NO), year(DATE) == 2018) %>% summarise(rev = sum(EXT_SALES, na.rm = T))
 No_CATs <- unique(No_CATs$PRODUCT_NO) # 492 unique products without CAT_NOs, corresponding to ~2300 transactions
-unique(PSC_Sales$PRODUCT_NO) # 46003 unique products; ~675K transactions identified have CAT_NOs... but this does not tie out
-
+Total_Prods <- PSC_Sales %>% filter(year(DATE) == 2018)
+Total_Prods <- unique(Total_Prods$PRODUCT_NO)
+ungroup(PSC_Sales) %>% filter(year(DATE) == 2018) %>% summarise(Rev = sum(EXT_SALES, na.rm = T))
 ###################################
 
 # Perform Price Structuring Analytics - Missouri Sales
