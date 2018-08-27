@@ -3,6 +3,7 @@ library(lubridate)
 library(data.table)
 library(broom)
 library(tictoc)
+library(rio)
 
 options(scipen = 999)
 
@@ -74,37 +75,29 @@ tally_below <- function(x, y) {
 tic("Import PSC Sales Data")
 path <- "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Sales Data"
 files_list <- list.files(path)
-
-for (file in files_list) {
-  if(!exists("PSC_Sales")) {
-    PSC_Sales <- read.csv(paste0(path, "/", file), header = T, sep = "|", stringsAsFactors = F)
-  }
-  
-  if(exists("PSC_Sales")) {
-    temp <- read.csv(paste0(path, "/", file), header = T, sep = "|", stringsAsFactors = F)
-    PSC_Sales <- rbind(PSC_Sales, temp)
-    rm(temp)
-  }
+files_list <- paste0(path, "/", files_list)
+if(exists("PSC_Sales")){
+  rm(PSC_Sales)
 }
+PSC_Sales <- do.call(rbind, lapply(files_list, fread))
 toc()
 
 tic("Import PSC Product Data")
-PSC_Product_Details <- read.csv("C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/phocas_product.txt", sep = "|",
-                                stringsAsFactors = F, quote = "")
+PSC_Product_Details <- fread("C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/phocas_product.txt", sep = "|")
+# PSC_Product_Details <- read_excel("C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Prod_Cat_No.xlsx")
 toc()
 
 tic("Structure Sales Data")
-
 str(PSC_Sales)
-
+names(PSC_Sales)[12] <- "SELL_BR"
 # Character classes
-PSC_Sales$CUST_NO <- str_trim(as.character(PSC_Sales$CUST_NO), side = "both")
-PSC_Sales$PRODUCT_NO <- str_trim(as.character(PSC_Sales$PRODUCT_NO), side = "both")
-PSC_Sales$ORD_TYP <- str_trim(as.character(PSC_Sales$ORD_TYP), side = "both")
-PSC_Sales$WRT_BY <- str_trim(as.character(PSC_Sales$WRT_BY), side = "both")
-PSC_Sales$SELL.BR <- str_trim(as.character(PSC_Sales$SELL.BR), side = "both")
-PSC_Sales$ZIP <- str_trim(as.character(PSC_Sales$ZIP), side = "both")
-PSC_Sales$TYPE <- str_trim(as.character(PSC_Sales$TYPE), side = "both")
+PSC_Sales$CUST_NO <- str_trim(PSC_Sales$CUST_NO, side = "both")
+PSC_Sales$PRODUCT_NO <- str_trim(toupper(PSC_Sales$PRODUCT_NO), side = "both")
+PSC_Sales$ORD_TYP <- str_trim(PSC_Sales$ORD_TYP, side = "both")
+PSC_Sales$WRT_BY <- str_trim(PSC_Sales$WRT_BY, side = "both")
+PSC_Sales$SELL_BR <- str_trim(as.character(PSC_Sales$SELL_BR), side = "both")
+PSC_Sales$ZIP <- str_trim(PSC_Sales$ZIP, side = "both")
+PSC_Sales$TYPE <- str_trim(PSC_Sales$TYPE, side = "both")
 
 # Numeric classes
 PSC_Sales$QTY <- as.numeric(as.character(PSC_Sales$QTY))
@@ -115,18 +108,17 @@ PSC_Sales$DATE <- mdy(as.character(PSC_Sales$DATE))
 # Filter to legitimate B2B transactions
 PSC_Sales <- PSC_Sales %>% 
   filter(!grepl("LABOR|labor|Labor", PRODUCT_NO), !grepl("9999", CUST_NO), EXT_SALES > 0, QTY > 0, TYPE == "SLS") %>% 
-  select(-ORDER., -FRTCOST, -MM, -YY, -SBR, -EXT_AVG_COST, -REQ_DATE, -TYPE, -SV_CODE, -SLS_NO)
+  select(-`ORDER#`, -FRTCOST, -MM, -YY, -SBR, -EXT_AVG_COST, -REQ_DATE, -TYPE, -SV_CODE, -SLS_NO)
 
 toc()
 
 tic("Structure Product Data")
 str(PSC_Product_Details)
-PSC_Product_Details <- PSC_Product_Details %>%
-  select(PROD_NO, CAT_NO, CAT_DESC)
-PSC_Product_Details$PROD_NO <- str_trim(as.character(PSC_Product_Details$PROD_NO), side = "both")
 names(PSC_Product_Details)[1] <- "PRODUCT_NO"
-PSC_Product_Details$CAT_NO <- str_trim(as.character(PSC_Product_Details$CAT_NO), side = "both")
-PSC_Product_Details$CAT_DESC <- str_trim(as.character(PSC_Product_Details$CAT_DESC), side = "both")
+names(PSC_Product_Details)[3] <- "CAT_NO"
+PSC_Product_Details <- PSC_Product_Details %>% select(PRODUCT_NO, CAT_NO)
+PSC_Product_Details$PRODUCT_NO <- str_trim(toupper(PSC_Product_Details$PRODUCT_NO), side = "both")
+PSC_Product_Details$CAT_NO <- str_trim(PSC_Product_Details$CAT_NO, side = "both")
 toc()
 
 tic("Assign Customer Ranks")
@@ -148,9 +140,8 @@ toc()
 tic("Merge Relevant Product Details")
 PSC_Sales <- data.table(PSC_Sales)
 PSC_Product_Details <- data.table(PSC_Product_Details)
-PSC_Sales <- merge(x = PSC_Sales, y = PSC_Product_Details[ , c("PRODUCT_NO", "CAT_NO")], by = "PRODUCT_NO", all.x = T)
+PSC_Sales <- merge(x = PSC_Sales, y = PSC_Product_Details, by = "PRODUCT_NO", all.x = T)
 toc()
-
 
 # Add GM_Perc to PSC_Sales:
 PSC_Sales$GM_Perc <- (PSC_Sales$EXT_SALES - PSC_Sales$EXT_COST_REB) / PSC_Sales$EXT_SALES
@@ -163,15 +154,10 @@ CUST_DECILE_Revs <- PSC_Sales %>%
             n = n()) %>% 
   arrange(desc(Revenue))
 
-##################################################################
 # Separate Missouri (MO) and Illinois (IL) branches
 
-PSC_Sales_MO <- PSC_Sales %>% filter(!SELL.BR %in% c(6, 10, 15))
-PSC_Sales_IL <- PSC_Sales %>% filter(SELL.BR %in% c(6, 10, 15))
-
-##################################################################
-
-###################################
+PSC_Sales_MO <- PSC_Sales %>% filter(!SELL_BR %in% c(6, 10, 15))
+PSC_Sales_IL <- PSC_Sales %>% filter(SELL_BR %in% c(6, 10, 15))
 
 # Perform Price Structuring Analytics
 
@@ -206,6 +192,8 @@ toc()
 names(PSC_floor)[3] <- "BCA_GM"
 PSC_floor$lag <- NULL
 
+PSC_floor <- data.table(PSC_floor)
+PSC_Sales <- data.table(PSC_Sales)
 PSC_Sales <- merge(x = PSC_Sales, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
 # Count the number of transactions above and below each Price Structuring Approach Output
@@ -231,7 +219,9 @@ PSC_tallies <- PSC_Sales %>%
             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
-PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+# PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+PSC_tallies <- data.table(PSC_tallies)
+PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
 PSC_Sales <- PSC_Sales %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
                                   -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
@@ -245,7 +235,7 @@ names(PSC_Sales)[21] <- "weighted_GM2_belowCount"
 names(PSC_Sales)[22] <- "BCA_GM_aboveCount"
 names(PSC_Sales)[23] <- "BCA_GM_belowCount"
 
-# Add in decile GMs for reference
+# Add in decile GMs, CAT_NO total rev, total QTY for reference
 
 PSC_Sales <- PSC_Sales %>% 
   group_by(CAT_NO) %>% 
@@ -263,19 +253,12 @@ PSC_Sales <- PSC_Sales %>%
          GM75 = quantile(GM_Perc, 0.75, na.rm = T),
          GM80 = quantile(GM_Perc, 0.80, na.rm = T),
          GM90 = quantile(GM_Perc, 0.90, na.rm = T),
-         GM95 = quantile(GM_Perc, 0.95, na.rm = T)) %>% 
+         GM95 = quantile(GM_Perc, 0.95, na.rm = T),
+         GM_range = maxGM - minGM,
+         CAT_Revenue = sum(EXT_SALES, na.rm = T),
+         CAT_QTY = sum(QTY, na.rm = T)) %>% 
   arrange(desc(CAT_NO), CUST_DECILE)
 
-PSC_Sales <- PSC_Sales %>% 
-  group_by(CAT_NO) %>% 
-  mutate(CAT_Revenue = sum(EXT_SALES, na.rm = T))
-
-No_CATs <- ungroup(PSC_Sales) %>% filter(is.na(CAT_NO), year(DATE) == 2018)
-ungroup(PSC_Sales) %>% filter(is.na(CAT_NO), year(DATE) == 2018) %>% summarise(rev = sum(EXT_SALES, na.rm = T))
-No_CATs <- unique(No_CATs$PRODUCT_NO) # 492 unique products without CAT_NOs, corresponding to ~2300 transactions
-Total_Prods <- PSC_Sales %>% filter(year(DATE) == 2018)
-Total_Prods <- unique(Total_Prods$PRODUCT_NO)
-ungroup(PSC_Sales) %>% filter(year(DATE) == 2018) %>% summarise(Rev = sum(EXT_SALES, na.rm = T))
 ###################################
 
 # Perform Price Structuring Analytics - Missouri Sales
@@ -311,21 +294,11 @@ toc()
 names(PSC_floor)[3] <- "BCA_GM"
 PSC_floor$lag <- NULL
 
+PSC_floor <- data.table(PSC_floor)
+PSC_Sales_MO <- data.table(PSC_Sales_MO)
 PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
 # Count the number of transactions above and below each Price Structuring Approach Output
-
-tally_above <- function(x, y) {
-  if_else(!is.na(x) & !is.na(y),
-          if_else(x > y, 1, 0),
-          0)
-}
-
-tally_below <- function(x, y) {
-  if_else(!is.na(x) & !is.na(y),
-          if_else(x < y, 1, 0),
-          0)
-}
 
 PSC_Sales_MO$weighted_GM_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM1)
 
@@ -348,7 +321,8 @@ PSC_tallies <- PSC_Sales_MO %>%
             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
-PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+PSC_tallies <- data.table(PSC_tallies)
+PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
 PSC_Sales_MO <- PSC_Sales_MO %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
                                   -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
@@ -380,12 +354,11 @@ PSC_Sales_MO <- PSC_Sales_MO %>%
          GM75 = quantile(GM_Perc, 0.75, na.rm = T),
          GM80 = quantile(GM_Perc, 0.80, na.rm = T),
          GM90 = quantile(GM_Perc, 0.90, na.rm = T),
-         GM95 = quantile(GM_Perc, 0.95, na.rm = T)) %>% 
+         GM95 = quantile(GM_Perc, 0.95, na.rm = T),
+         GM_Range = maxGM - minGM,
+         CAT_Revenue = sum(EXT_SALES, na.rm = T),
+         CAT_QTY = sum(QTY, na.rm = T)) %>% 
   arrange(desc(CAT_NO), CUST_DECILE)
-
-PSC_Sales_MO <- PSC_Sales_MO %>% 
-  group_by(CAT_NO) %>% 
-  mutate(CAT_Revenue = sum(EXT_SALES, na.rm = T))
 
 ###################################
 
@@ -422,21 +395,11 @@ toc()
 names(PSC_floor)[3] <- "BCA_GM"
 PSC_floor$lag <- NULL
 
+PSC_floor <- data.table(PSC_floor)
+PSC_Sales_IL <- data.table(PSC_Sales_IL)
 PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
 # Count the number of transactions above and below each Price Structuring Approach Output
-
-tally_above <- function(x, y) {
-  if_else(!is.na(x) & !is.na(y),
-          if_else(x > y, 1, 0),
-          0)
-}
-
-tally_below <- function(x, y) {
-  if_else(!is.na(x) & !is.na(y),
-          if_else(x < y, 1, 0),
-          0)
-}
 
 PSC_Sales_IL$weighted_GM_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM1)
 
@@ -459,7 +422,9 @@ PSC_tallies <- PSC_Sales_IL %>%
             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
-PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+PSC_tallies <- data.table(PSC_tallies)
+PSC_Sales_IL <- data.table(PSC_Sales_IL)
+PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
 PSC_Sales_IL <- PSC_Sales_IL %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
                                         -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
@@ -491,20 +456,17 @@ PSC_Sales_IL <- PSC_Sales_IL %>%
          GM75 = quantile(GM_Perc, 0.75, na.rm = T),
          GM80 = quantile(GM_Perc, 0.80, na.rm = T),
          GM90 = quantile(GM_Perc, 0.90, na.rm = T),
-         GM95 = quantile(GM_Perc, 0.95, na.rm = T)) %>% 
+         GM95 = quantile(GM_Perc, 0.95, na.rm = T),
+         GM_Range = maxGM - minGM,
+         CAT_Revenue = sum(EXT_SALES, na.rm = T),
+         CAT_QTY = sum(QTY, na.rm = T)) %>% 
   arrange(desc(CAT_NO), CUST_DECILE)
 
-PSC_Sales_IL <- PSC_Sales_IL %>% 
-  group_by(CAT_NO) %>% 
-  mutate(CAT_Revenue = sum(EXT_SALES, na.rm = T))
+# EXPORT
 
-
-ungroup(PSC_Sales) %>% filter(year(DATE) == 2018, is.na(CAT_NO)) %>% summarise(Rev = sum(EXT_SALES, na.rm = T),
-                                                                               n = n())
-
-temp <- ungroup(PSC_Sales) %>% filter(year(DATE) == 2018, is.na(CAT_NO))
-unique(temp$PRODUCT_NO)
-
+export(PSC_Sales, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs.csv")
+export(PSC_Sales_IL, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_IL.csv")
+export(PSC_Sales_MO, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_MO.csv")
 ############################################################################################
 ############################################################################################
 ############################################################################################
@@ -701,7 +663,7 @@ PSC_Sales$GM_Perc <- (PSC_Sales$EXT_SALES - PSC_Sales$EXT_COST_REB) / PSC_Sales$
 # Create demow with TOTC454CUFGW
 PSC_Demo <- PSC_Sales %>% 
   filter(PRODUCT_NO == "TOTC454CUFGW", year(DATE) == 2018, EXT_SALES > 0, GM_Perc > 0) %>% 
-  select(-SLS_NO, -EXT_AVG_COST, -ORDER., -TYPE, -ORD_TYP, -SV_CODE, -REQ_DATE, -FRTCOST, -ZIP, - WRT_BY, -SELL.BR, -SBR, -MM, -YY)
+  select(-SLS_NO, -EXT_AVG_COST, -ORDER., -TYPE, -ORD_TYP, -SV_CODE, -REQ_DATE, -FRTCOST, -ZIP, - WRT_BY, -SBR, -MM, -YY)
 
 # Quickly plot conceptual view of what will be done
 ggplot(PSC_Demo, aes(x = QTY, y = GM_Perc)) +
