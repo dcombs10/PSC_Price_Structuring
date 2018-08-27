@@ -256,7 +256,9 @@ PSC_Sales <- PSC_Sales %>%
          GM95 = quantile(GM_Perc, 0.95, na.rm = T),
          GM_range = maxGM - minGM,
          CAT_Revenue = sum(EXT_SALES, na.rm = T),
-         CAT_QTY = sum(QTY, na.rm = T)) %>% 
+         CAT_Costs = sum(EXT_COST_REBATE, na.rm = T),
+         CAT_QTY = sum(QTY, na.rm = T),
+         BEven_GM = (CAT_Revenue - CAT_Costs) / CAT_Revenue) %>% 
   arrange(desc(CAT_NO), CUST_DECILE)
 
 ###################################
