@@ -129,8 +129,8 @@ temp <- PSC_Sales %>%
 
 Rev_ECDF <- ecdf(temp$Rev)
 temp$CUST_RANK <- Rev_ECDF(temp$Rev)
-temp <- data.table(temp)
-PSC_Sales <- data.table(PSC_Sales)
+setDT(temp)
+setDT(PSC_Sales)
 PSC_Sales <- merge(x = PSC_Sales, y = temp[ , c("CUST_NO", "CUST_RANK")], by = "CUST_NO", all.x = T)
 rm(temp)
 
@@ -138,8 +138,8 @@ PSC_Sales$CUST_DECILE <- sapply(PSC_Sales$CUST_RANK, custDeciles)
 toc()
 
 tic("Merge Relevant Product Details")
-PSC_Sales <- data.table(PSC_Sales)
-PSC_Product_Details <- data.table(PSC_Product_Details)
+setDT(PSC_Sales)
+setDT(PSC_Product_Details)
 PSC_Sales <- merge(x = PSC_Sales, y = PSC_Product_Details, by = "PRODUCT_NO", all.x = T)
 toc()
 
@@ -192,8 +192,8 @@ toc()
 names(PSC_floor)[3] <- "BCA_GM"
 PSC_floor$lag <- NULL
 
-PSC_floor <- data.table(PSC_floor)
-PSC_Sales <- data.table(PSC_Sales)
+setDT(PSC_floor)
+setDT(PSC_Sales)
 PSC_Sales <- merge(x = PSC_Sales, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
 # Count the number of transactions above and below each Price Structuring Approach Output
@@ -220,7 +220,7 @@ PSC_tallies <- PSC_Sales %>%
             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
 # PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
-PSC_tallies <- data.table(PSC_tallies)
+setDT(PSC_tallies)
 PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
 PSC_Sales <- PSC_Sales %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
@@ -235,23 +235,20 @@ names(PSC_Sales)[21] <- "weighted_GM2_belowCount"
 names(PSC_Sales)[22] <- "BCA_GM_aboveCount"
 names(PSC_Sales)[23] <- "BCA_GM_belowCount"
 
-# Add in decile GMs, CAT_NO total rev, total QTY for reference
+# Add in decile GMs, CAT_NO total rev, total QTY, total Costs, Break Even GM for reference
 
 PSC_Sales <- PSC_Sales %>% 
   group_by(CAT_NO) %>% 
   mutate(minGM = min(GM_Perc, na.rm = T),
          maxGM = max(GM_Perc, na.rm = T),
-         GM10 = quantile(GM_Perc, 0.10, na.rm = T),
-         GM20 = quantile(GM_Perc, 0.20, na.rm = T),
-         GM25 = quantile(GM_Perc, 0.25, na.rm = T),
-         GM30 = quantile(GM_Perc, 0.30, na.rm = T),
-         GM40 = quantile(GM_Perc, 0.40, na.rm = T),
          GM50 = quantile(GM_Perc, 0.50, na.rm = T),
+         GM55 = quantile(GM_Perc, 0.55, na.rm = T),
          GM60 = quantile(GM_Perc, 0.60, na.rm = T),
          GM65 = quantile(GM_Perc, 0.65, na.rm = T),
          GM70 = quantile(GM_Perc, 0.70, na.rm = T),
          GM75 = quantile(GM_Perc, 0.75, na.rm = T),
          GM80 = quantile(GM_Perc, 0.80, na.rm = T),
+         GM85 = quantile(GM_Perc, 0.85, na.rm = T),
          GM90 = quantile(GM_Perc, 0.90, na.rm = T),
          GM95 = quantile(GM_Perc, 0.95, na.rm = T),
          GM_range = maxGM - minGM,
@@ -259,9 +256,84 @@ PSC_Sales <- PSC_Sales %>%
          CAT_Costs = sum(EXT_COST_REBATE, na.rm = T),
          CAT_QTY = sum(QTY, na.rm = T),
          BEven_GM = (CAT_Revenue - CAT_Costs) / CAT_Revenue) %>% 
-  arrange(desc(CAT_NO), CUST_DECILE)
+  arrange(CAT_NO, CUST_DECILE)
 
-###################################
+# Summarize PSC_Sales dataframe at the CAT_NO, CUST_DECILE level
+
+PSC_Sales <- PSC_Sales %>% 
+  group_by(CAT_NO, CUST_DECILE) %>% 
+  summarise(CAT_Revenue = mean(CAT_Revenue, na.rm = T),
+            CAT_Costs = mean(CAT_Costs, na.rm = T),
+            CAT_QTY = mean(CAT_QTY, na.rm = T),
+            GM_range = mean(GM_range, na.rm = T),
+            minGM = mean(minGM, na.rm = T),
+            maxGM = mean(maxGM, na.rm = T),
+            GM50 = mean(GM50, na.rm = T),
+            GM55 = mean(GM55, na.rm = T),
+            GM60 = mean(GM60, na.rm = T),
+            GM65 = mean(GM65, na.rm = T),
+            GM70 = mean(GM70, na.rm = T),
+            GM75 = mean(GM75, na.rm = T),
+            GM80 = mean(GM80, na.rm = T),
+            GM85 = mean(GM85, na.rm = T),
+            GM90 = mean(GM90, na.rm = T),
+            GM95 = mean(GM95, na.rm = T),
+            BCA_GM = mean(BCA_GM, na.rm = T),
+            Weighted_GM1 = mean(Weighted_GM1, na.rm = T),
+            Weighted_GM2 = mean(Weighted_GM2, na.rm = T),
+            BEven_GM = mean(BEven_GM, na.rm = T))
+
+# Determine Recommended GM target (output to be formally reviewed)
+
+setDT(PSC_Sales)
+PSC_Sales[MaxGM - MinGM <= 0.05, Rec_GM := MaxGM]
+PSC_Sales[BCA_GM > Weighted_GM1 & BCA_GM > Weighted_GM2 & BCA_GM > GM50 & BCA_GM > BEven_GM, Rec_GM := BCA_GM]
+PSC_Sales[Weighted_GM1 > BCA_GM & Weighted_GM1 > Weighted_GM2 & Weighted_GM1 > GM50 & Weighted_GM1 > BEven_GM, Rec_GM := Weighted_GM1]
+PSC_Sales[Weighted_GM2 > BCA_GM & Weighted_GM2 > Weighted_GM1 & Weighted_GM2 > GM50 & Weighted_GM2 > BEven_GM, Rec_GM := Weighted_GM2]
+PSC_Sales[GM95 - GM50 <= 0.05 & GM95 >= BEven_GM, Rec_GM := GM95]
+PSC_Sales[GM90 - GM50 <= 0.05 & GM90 >= BEven_GM, Rec_GM := GM90]
+PSC_Sales[GM85 - GM50 <= 0.05 & GM85 >= BEven_GM, Rec_GM := GM85]
+PSC_Sales[GM80 - GM50 <= 0.05 & GM80 >= BEven_GM, Rec_GM := GM80]
+PSC_Sales[GM75 - GM50 <= 0.05 & GM75 >= BEven_GM, Rec_GM := GM75]
+PSC_Sales[GM70 - GM50 <= 0.05 & GM70 >= BEven_GM, Rec_GM := GM70]
+PSC_Sales[GM65 - GM50 <= 0.05 & GM65 >= BEven_GM, Rec_GM := GM65]
+PSC_Sales[GM60 - GM50 <= 0.05 & GM60 >= BEven_GM, Rec_GM := GM60]
+PSC_Sales[GM55 - GM50 <= 0.05 & GM55 >= BEven_GM, Rec_GM := GM55]
+PSC_Sales[GM50 >= BEven_GM, Rec_GM := GM50]
+PSC_Sales[is.na(Rec_GM), Rec_GM := BEven_GM]
+
+# Create a tracker to know which Recommended GM logic was used
+
+PSC_Sales[MaxGM - MinGM <= 0.05, Rec_Logic := "MaxGM"]
+PSC_Sales[BCA_GM > Weighted_GM1 & BCA_GM > Weighted_GM2 & BCA_GM > GM50 & BCA_GM > BEven_GM, Rec_Logic := "BCA_GM"]
+PSC_Sales[Weighted_GM1 > BCA_GM & Weighted_GM1 > Weighted_GM2 & Weighted_GM1 > GM50 & Weighted_GM1 > BEven_GM, Rec_Logic := "Weighted_GM1"]
+PSC_Sales[Weighted_GM2 > BCA_GM & Weighted_GM2 > Weighted_GM1 & Weighted_GM2 > GM50 & Weighted_GM2 > BEven_GM, Rec_Logic := "Weighted_GM2"]
+PSC_Sales[GM95 - GM50 <= 0.05 & GM95 >= BEven_GM, Rec_Logic := "GM95"]
+PSC_Sales[GM90 - GM50 <= 0.05 & GM90 >= BEven_GM, Rec_Logic := "GM90"]
+PSC_Sales[GM85 - GM50 <= 0.05 & GM85 >= BEven_GM, Rec_Logic := "GM85"]
+PSC_Sales[GM80 - GM50 <= 0.05 & GM80 >= BEven_GM, Rec_Logic := "GM80"]
+PSC_Sales[GM75 - GM50 <= 0.05 & GM75 >= BEven_GM, Rec_Logic := "GM75"]
+PSC_Sales[GM70 - GM50 <= 0.05 & GM70 >= BEven_GM, Rec_Logic := "GM70"]
+PSC_Sales[GM65 - GM50 <= 0.05 & GM65 >= BEven_GM, Rec_Logic := "GM65"]
+PSC_Sales[GM60 - GM50 <= 0.05 & GM60 >= BEven_GM, Rec_Logic := "GM60"]
+PSC_Sales[GM55 - GM50 <= 0.05 & GM55 >= BEven_GM, Rec_Logic := "GM55"]
+PSC_Sales[GM50 >= BEven_GM, Rec_Logic := "GM50"]
+PSC_Sales[is.na(Rec_GM), Rec_Logic := "BEven_GM"]
+
+# Create a new data frame that ensures every unique product in PSC_Sales has a Customer Decile
+# Without doing this, we may have some CAT_NOs that only have a few customer deciles defined
+
+temp <- unique(PSC_Sales$CAT_NO)
+temp <- data.frame(Products = temp)
+n <- nrow(temp)
+
+PSC_Sales_Matrix <- data.frame(CAT_NO = rep(temp, times = 10),
+                               CUST_DECILE = rep(c(1:10), times = n))
+PSC_Sales_Matrix <- PSC_Sales_Matrix %>% arrange(CAT_NO, CUST_DECILE)
+
+PSC_Sales_Matrix <- merge(x = PSC_Sales_Matrix, y = PSC_Sales, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+
+######################################################################
 
 # Perform Price Structuring Analytics - Missouri Sales
 
@@ -296,8 +368,8 @@ toc()
 names(PSC_floor)[3] <- "BCA_GM"
 PSC_floor$lag <- NULL
 
-PSC_floor <- data.table(PSC_floor)
-PSC_Sales_MO <- data.table(PSC_Sales_MO)
+setDT(PSC_floor)
+setDT(PSC_Sales_MO)
 PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
 # Count the number of transactions above and below each Price Structuring Approach Output
@@ -323,7 +395,7 @@ PSC_tallies <- PSC_Sales_MO %>%
             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
-PSC_tallies <- data.table(PSC_tallies)
+setDT(PSC_tallies)
 PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
 PSC_Sales_MO <- PSC_Sales_MO %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
@@ -344,25 +416,46 @@ PSC_Sales_MO <- PSC_Sales_MO %>%
   group_by(CAT_NO) %>% 
   mutate(minGM = min(GM_Perc, na.rm = T),
          maxGM = max(GM_Perc, na.rm = T),
-         GM10 = quantile(GM_Perc, 0.10, na.rm = T),
-         GM20 = quantile(GM_Perc, 0.20, na.rm = T),
-         GM25 = quantile(GM_Perc, 0.25, na.rm = T),
-         GM30 = quantile(GM_Perc, 0.30, na.rm = T),
-         GM40 = quantile(GM_Perc, 0.40, na.rm = T),
          GM50 = quantile(GM_Perc, 0.50, na.rm = T),
+         GM55 = quantile(GM_Perc, 0.55, na.rm = T),
          GM60 = quantile(GM_Perc, 0.60, na.rm = T),
          GM65 = quantile(GM_Perc, 0.65, na.rm = T),
          GM70 = quantile(GM_Perc, 0.70, na.rm = T),
          GM75 = quantile(GM_Perc, 0.75, na.rm = T),
          GM80 = quantile(GM_Perc, 0.80, na.rm = T),
+         GM85 = quantile(GM_Perc, 0.85, na.rm = T),
          GM90 = quantile(GM_Perc, 0.90, na.rm = T),
          GM95 = quantile(GM_Perc, 0.95, na.rm = T),
-         GM_Range = maxGM - minGM,
+         GM_range = maxGM - minGM,
          CAT_Revenue = sum(EXT_SALES, na.rm = T),
-         CAT_QTY = sum(QTY, na.rm = T)) %>% 
-  arrange(desc(CAT_NO), CUST_DECILE)
+         CAT_Costs = sum(EXT_COST_REBATE, na.rm = T),
+         CAT_QTY = sum(QTY, na.rm = T),
+         BEven_GM = (CAT_Revenue - CAT_Costs) / CAT_Revenue)
 
-###################################
+PSC_Sales_MO <- PSC_Sales_MO %>% 
+  group_by(CAT_NO, CUST_DECILE) %>% 
+  summarise(CAT_Revenue = mean(CAT_Revenue, na.rm = T),
+            CAT_Costs = mean(CAT_Costs, na.rm = T),
+            CAT_QTY = mean(CAT_QTY, na.rm = T),
+            GM_range = mean(GM_range, na.rm = T),
+            minGM = mean(minGM, na.rm = T),
+            maxGM = mean(maxGM, na.rm = T),
+            GM50 = mean(GM50, na.rm = T),
+            GM55 = mean(GM55, na.rm = T),
+            GM60 = mean(GM60, na.rm = T),
+            GM65 = mean(GM65, na.rm = T),
+            GM70 = mean(GM70, na.rm = T),
+            GM75 = mean(GM75, na.rm = T),
+            GM80 = mean(GM80, na.rm = T),
+            GM85 = mean(GM85, na.rm = T),
+            GM90 = mean(GM90, na.rm = T),
+            GM95 = mean(GM95, na.rm = T),
+            BCA_GM = mean(BCA_GM, na.rm = T),
+            Weighted_GM1 = mean(Weighted_GM1, na.rm = T),
+            Weighted_GM2 = mean(Weighted_GM2, na.rm = T),
+            BEven_GM = mean(BEven_GM, na.rm = T))
+
+######################################################################
 
 # Perform Price Structuring Analytics - Illinois Sales
 
@@ -397,8 +490,8 @@ toc()
 names(PSC_floor)[3] <- "BCA_GM"
 PSC_floor$lag <- NULL
 
-PSC_floor <- data.table(PSC_floor)
-PSC_Sales_IL <- data.table(PSC_Sales_IL)
+setDT(PSC_floor)
+setDT(PSC_Sales_IL)
 PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
 # Count the number of transactions above and below each Price Structuring Approach Output
@@ -424,8 +517,8 @@ PSC_tallies <- PSC_Sales_IL %>%
             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
-PSC_tallies <- data.table(PSC_tallies)
-PSC_Sales_IL <- data.table(PSC_Sales_IL)
+setDT(PSC_tallies)
+setDT(PSC_Sales_IL)
 PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
 PSC_Sales_IL <- PSC_Sales_IL %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
@@ -446,23 +539,44 @@ PSC_Sales_IL <- PSC_Sales_IL %>%
   group_by(CAT_NO) %>% 
   mutate(minGM = min(GM_Perc, na.rm = T),
          maxGM = max(GM_Perc, na.rm = T),
-         GM10 = quantile(GM_Perc, 0.10, na.rm = T),
-         GM20 = quantile(GM_Perc, 0.20, na.rm = T),
-         GM25 = quantile(GM_Perc, 0.25, na.rm = T),
-         GM30 = quantile(GM_Perc, 0.30, na.rm = T),
-         GM40 = quantile(GM_Perc, 0.40, na.rm = T),
          GM50 = quantile(GM_Perc, 0.50, na.rm = T),
+         GM55 = quantile(GM_Perc, 0.55, na.rm = T),
          GM60 = quantile(GM_Perc, 0.60, na.rm = T),
          GM65 = quantile(GM_Perc, 0.65, na.rm = T),
          GM70 = quantile(GM_Perc, 0.70, na.rm = T),
          GM75 = quantile(GM_Perc, 0.75, na.rm = T),
          GM80 = quantile(GM_Perc, 0.80, na.rm = T),
+         GM85 = quantile(GM_Perc, 0.85, na.rm = T),
          GM90 = quantile(GM_Perc, 0.90, na.rm = T),
          GM95 = quantile(GM_Perc, 0.95, na.rm = T),
-         GM_Range = maxGM - minGM,
+         GM_range = maxGM - minGM,
          CAT_Revenue = sum(EXT_SALES, na.rm = T),
-         CAT_QTY = sum(QTY, na.rm = T)) %>% 
-  arrange(desc(CAT_NO), CUST_DECILE)
+         CAT_Costs = sum(EXT_COST_REBATE, na.rm = T),
+         CAT_QTY = sum(QTY, na.rm = T),
+         BEven_GM = (CAT_Revenue - CAT_Costs) / CAT_Revenue)
+
+PSC_Sales_IL <- PSC_Sales_IL %>% 
+  group_by(CAT_NO, CUST_DECILE) %>% 
+  summarise(CAT_Revenue = mean(CAT_Revenue, na.rm = T),
+            CAT_Costs = mean(CAT_Costs, na.rm = T),
+            CAT_QTY = mean(CAT_QTY, na.rm = T),
+            GM_range = mean(GM_range, na.rm = T),
+            minGM = mean(minGM, na.rm = T),
+            maxGM = mean(maxGM, na.rm = T),
+            GM50 = mean(GM50, na.rm = T),
+            GM55 = mean(GM55, na.rm = T),
+            GM60 = mean(GM60, na.rm = T),
+            GM65 = mean(GM65, na.rm = T),
+            GM70 = mean(GM70, na.rm = T),
+            GM75 = mean(GM75, na.rm = T),
+            GM80 = mean(GM80, na.rm = T),
+            GM85 = mean(GM85, na.rm = T),
+            GM90 = mean(GM90, na.rm = T),
+            GM95 = mean(GM95, na.rm = T),
+            BCA_GM = mean(BCA_GM, na.rm = T),
+            Weighted_GM1 = mean(Weighted_GM1, na.rm = T),
+            Weighted_GM2 = mean(Weighted_GM2, na.rm = T),
+            BEven_GM = mean(BEven_GM, na.rm = T))
 
 # EXPORT
 
