@@ -335,15 +335,19 @@ temp1 <- PSC_Sales %>% arrange(desc(Rec_GM))
 # Create a new data frame that ensures every unique product in PSC_Sales has a Customer Decile
 # Without doing this, we may have some CAT_NOs that only have a few customer deciles defined
 
-temp <- unique(PSC_Sales$CAT_NO)
+temp <- unique(PSC_Sales1$CAT_NO)
 temp <- data.frame(Products = temp)
 n <- nrow(temp)
 
 PSC_Sales_Matrix <- data.frame(CAT_NO = rep(temp, times = 10),
                                CUST_DECILE = rep(c(1:10), times = n))
 PSC_Sales_Matrix <- PSC_Sales_Matrix %>% arrange(CAT_NO, CUST_DECILE)
+setDT(PSC_Sales_Matrix)
+setDT(PSC_Sales1)
+PSC_Sales_Matrix <- merge(x = PSC_Sales_Matrix, y = PSC_Sales1, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
 
-PSC_Sales_Matrix <- merge(x = PSC_Sales_Matrix, y = PSC_Sales, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+PSC_Sales_Matrix[is.na(Rec_GM) & !is.na(shift(Rec_GM, n = 1, type = "lag")) & CAT_NO == shift(CAT_NO, n = 1, type = "lag"), Rec_GM = shift(Rec_GM, n = 1, type = "lag")]
+
 
 ######################################################################
 
