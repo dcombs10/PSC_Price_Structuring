@@ -196,44 +196,45 @@ setDT(PSC_floor)
 setDT(PSC_Sales)
 PSC_Sales <- merge(x = PSC_Sales, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
+# Tallies no longer required:
 # Count the number of transactions above and below each Price Structuring Approach Output
 
-PSC_Sales$weighted_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM1)
+# PSC_Sales$weighted_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM1)
 
-PSC_Sales$weighted_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM1)
+# PSC_Sales$weighted_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM1)
 
-PSC_Sales$weighted_GM2_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM2)
+# PSC_Sales$weighted_GM2_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM2)
 
-PSC_Sales$weighted_GM2_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM2)
+# PSC_Sales$weighted_GM2_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$weighted_GM2)
 
-PSC_Sales$BCA_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$BCA_GM)
+# PSC_Sales$BCA_GM_aboveCount <- tally_above(PSC_Sales$GM_Perc, PSC_Sales$BCA_GM)
 
-PSC_Sales$BCA_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$BCA_GM)
+# PSC_Sales$BCA_GM_belowCount <- tally_below(PSC_Sales$GM_Perc, PSC_Sales$BCA_GM)
 
-PSC_tallies <- PSC_Sales %>% 
-  group_by(CAT_NO) %>% 
-  summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
-            weighted_GM_belowCount = sum(weighted_GM_belowCount),
-            weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
-            weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
-            BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
-            BCA_GM_belowCount = sum(BCA_GM_belowCount))
+# PSC_tallies <- PSC_Sales %>% 
+#   group_by(CAT_NO) %>% 
+#   summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
+#             weighted_GM_belowCount = sum(weighted_GM_belowCount),
+#             weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
+#             weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
+#             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
+#             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
 # PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
-setDT(PSC_tallies)
-PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = "CAT_NO", all.x = T)
+# setDT(PSC_tallies)
+# PSC_Sales <- merge(x = PSC_Sales, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
-PSC_Sales <- PSC_Sales %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
-                                  -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
-                                  -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
+# PSC_Sales <- PSC_Sales %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
+#                                   -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
+#                                   -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
 
-names(PSC_Sales)
-names(PSC_Sales)[18] <- "weighted_GM_aboveCount"
-names(PSC_Sales)[19] <- "weighted_GM_belowCount"
-names(PSC_Sales)[20] <- "weighted_GM2_aboveCount"
-names(PSC_Sales)[21] <- "weighted_GM2_belowCount"
-names(PSC_Sales)[22] <- "BCA_GM_aboveCount"
-names(PSC_Sales)[23] <- "BCA_GM_belowCount"
+# names(PSC_Sales)
+# names(PSC_Sales)[18] <- "weighted_GM_aboveCount"
+# names(PSC_Sales)[19] <- "weighted_GM_belowCount"
+# names(PSC_Sales)[20] <- "weighted_GM2_aboveCount"
+# names(PSC_Sales)[21] <- "weighted_GM2_belowCount"
+# names(PSC_Sales)[22] <- "BCA_GM_aboveCount"
+# names(PSC_Sales)[23] <- "BCA_GM_belowCount"
 
 # Add in decile GMs, CAT_NO total rev, total QTY, total Costs, Break Even GM for reference
 
@@ -293,7 +294,7 @@ PSC_Sales1 <- PSC_Sales %>%
 PSC_Sales1$Rec_GM <- NULL
 PSC_Sales1$Rec_Logic <- NULL
 
-setDT(PSC_Sales)
+setDT(PSC_Sales1)
 PSC_Sales1[maxGM - minGM <= 0.05 & maxGM > 0, Rec_GM := maxGM]
 PSC_Sales1[is.na(Rec_GM) & BCA_GM >= Weighted_GM1 & BCA_GM >= Weighted_GM2 & BCA_GM >= GM50 & BCA_GM >= BEven_GM & BCA_GM > 0 | BCA_GM >= 1, Rec_GM := BCA_GM]
 PSC_Sales1[is.na(Rec_GM) & Weighted_GM1 >= BCA_GM & Weighted_GM1 >= Weighted_GM2 & Weighted_GM1 >= GM50 & Weighted_GM1 >= BEven_GM & Weighted_GM1 > 0, Rec_GM := Weighted_GM1]
@@ -330,23 +331,34 @@ PSC_Sales1[is.na(Rec_Logic) & GM50 >= BEven_GM & GM50 > 0, Rec_Logic := "GM50"]
 PSC_Sales1[is.na(Rec_Logic) & BEven_GM > 0, Rec_Logic := "BEven_GM"]
 PSC_Sales1[is.na(Rec_Logic) & BEven_GM <= 0, Rec_Logic := "Leftovers"]
 
-temp <- PSC_Sales %>% group_by(Rec_Logic) %>% summarise(n = n()) %>% arrange(desc(n))
-temp1 <- PSC_Sales %>% arrange(desc(Rec_GM))
+temp <- PSC_Sales1 %>% group_by(Rec_Logic) %>% summarise(n = n()) %>% arrange(desc(n))
+
 # Create a new data frame that ensures every unique product in PSC_Sales has a Customer Decile
 # Without doing this, we may have some CAT_NOs that only have a few customer deciles defined
 
-temp <- unique(PSC_Sales1$CAT_NO)
-temp <- data.frame(Products = temp)
-n <- nrow(temp)
+tic("Create Full PSC Price Matrix")
+PSC_Matrix <- expand(PSC_Sales1, CAT_NO, CUST_DECILE)
+setDT(PSC_Matrix)
+PSC_Matrix <- merge(x = PSC_Matrix, y = PSC_Sales1, 
+                          by = c("CAT_NO", "CUST_DECILE"), all.x = T)
 
-PSC_Sales_Matrix <- data.frame(CAT_NO = rep(temp, times = 10),
-                               CUST_DECILE = rep(c(1:10), times = n))
-PSC_Sales_Matrix <- PSC_Sales_Matrix %>% arrange(CAT_NO, CUST_DECILE)
-setDT(PSC_Sales_Matrix)
-setDT(PSC_Sales1)
-PSC_Sales_Matrix <- merge(x = PSC_Sales_Matrix, y = PSC_Sales1, by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+# setDT(PSC_Matrix)
+# PSC_Matrix[is.na(Rec_GM), Rec_GM := shift(Rec_GM, n = 1, type = "lag"), by = CAT_NO]
 
-PSC_Sales_Matrix[is.na(Rec_GM) & !is.na(shift(Rec_GM, n = 1, type = "lag")) & CAT_NO == shift(CAT_NO, n = 1, type = "lag"), Rec_GM = shift(Rec_GM, n = 1, type = "lag")]
+PSC_Matrix <- PSC_Matrix %>% arrange(CAT_NO, CUST_DECILE) %>% group_by(CAT_NO)
+
+PSC_Matrix <- PSC_Matrix %>% mutate(lag = lag(Rec_GM),
+                                    lead = lead(Rec_GM))
+
+while (any(is.na(PSC_Matrix$Rec_GM))) {
+  PSC_Matrix <- mutate(PSC_Matrix, Rec_GM = ifelse(!is.na(lag), lag, ifelse(!is.na(lead), lead, Rec_GM)))
+  PSC_Matrix <- mutate(PSC_Matrix, lag = lag(Rec_GM), lead = lead(Rec_GM))
+}
+
+PSC_Matrix$lag <- NULL
+PSC_Matrix$lead <- NULL
+
+toc()
 
 
 ######################################################################
@@ -388,43 +400,44 @@ setDT(PSC_floor)
 setDT(PSC_Sales_MO)
 PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
+# Tallies no longer required:
 # Count the number of transactions above and below each Price Structuring Approach Output
 
-PSC_Sales_MO$weighted_GM_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM1)
+# PSC_Sales_MO$weighted_GM_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM1)
 
-PSC_Sales_MO$weighted_GM_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM1)
+# PSC_Sales_MO$weighted_GM_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM1)
 
-PSC_Sales_MO$weighted_GM2_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM2)
+# PSC_Sales_MO$weighted_GM2_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM2)
 
-PSC_Sales_MO$weighted_GM2_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM2)
+# PSC_Sales_MO$weighted_GM2_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$weighted_GM2)
 
-PSC_Sales_MO$BCA_GM_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$BCA_GM)
+# PSC_Sales_MO$BCA_GM_aboveCount <- tally_above(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$BCA_GM)
 
-PSC_Sales_MO$BCA_GM_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$BCA_GM)
+# PSC_Sales_MO$BCA_GM_belowCount <- tally_below(PSC_Sales_MO$GM_Perc, PSC_Sales_MO$BCA_GM)
 
-PSC_tallies <- PSC_Sales_MO %>% 
-  group_by(CAT_NO) %>% 
-  summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
-            weighted_GM_belowCount = sum(weighted_GM_belowCount),
-            weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
-            weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
-            BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
-            BCA_GM_belowCount = sum(BCA_GM_belowCount))
+# PSC_tallies <- PSC_Sales_MO %>% 
+#   group_by(CAT_NO) %>% 
+#   summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
+#             weighted_GM_belowCount = sum(weighted_GM_belowCount),
+#             weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
+#             weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
+#             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
+#             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
-setDT(PSC_tallies)
-PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_tallies, by = "CAT_NO", all.x = T)
+# setDT(PSC_tallies)
+# PSC_Sales_MO <- merge(x = PSC_Sales_MO, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
-PSC_Sales_MO <- PSC_Sales_MO %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
-                                  -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
-                                  -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
+# PSC_Sales_MO <- PSC_Sales_MO %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
+#                                   -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
+#                                   -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
 
-names(PSC_Sales_MO)
-names(PSC_Sales_MO)[18] <- "weighted_GM_aboveCount"
-names(PSC_Sales_MO)[19] <- "weighted_GM_belowCount"
-names(PSC_Sales_MO)[20] <- "weighted_GM2_aboveCount"
-names(PSC_Sales_MO)[21] <- "weighted_GM2_belowCount"
-names(PSC_Sales_MO)[22] <- "BCA_GM_aboveCount"
-names(PSC_Sales_MO)[23] <- "BCA_GM_belowCount"
+# names(PSC_Sales_MO)
+# names(PSC_Sales_MO)[18] <- "weighted_GM_aboveCount"
+# names(PSC_Sales_MO)[19] <- "weighted_GM_belowCount"
+# names(PSC_Sales_MO)[20] <- "weighted_GM2_aboveCount"
+# names(PSC_Sales_MO)[21] <- "weighted_GM2_belowCount"
+# names(PSC_Sales_MO)[22] <- "BCA_GM_aboveCount"
+# names(PSC_Sales_MO)[23] <- "BCA_GM_belowCount"
 
 # Add in decile GMs for reference
 
@@ -448,7 +461,7 @@ PSC_Sales_MO <- PSC_Sales_MO %>%
          CAT_QTY = sum(QTY, na.rm = T),
          BEven_GM = (CAT_Revenue - CAT_Costs) / CAT_Revenue)
 
-PSC_Sales_MO <- PSC_Sales_MO %>% 
+PSC_Sales1_MO <- PSC_Sales_MO %>% 
   group_by(CAT_NO, CUST_DECILE) %>% 
   summarise(CAT_Revenue = mean(CAT_Revenue, na.rm = T),
             CAT_Costs = mean(CAT_Costs, na.rm = T),
@@ -470,6 +483,76 @@ PSC_Sales_MO <- PSC_Sales_MO %>%
             Weighted_GM1 = mean(Weighted_GM1, na.rm = T),
             Weighted_GM2 = mean(Weighted_GM2, na.rm = T),
             BEven_GM = mean(BEven_GM, na.rm = T))
+
+# Determine Recommended GM target (output to be formally reviewed)
+PSC_Sales1_MO$Rec_GM <- NULL
+PSC_Sales1_MO$Rec_Logic <- NULL
+
+setDT(PSC_Sales1_MO)
+PSC_Sales1_MO[maxGM - minGM <= 0.05 & maxGM > 0, Rec_GM := maxGM]
+PSC_Sales1_MO[is.na(Rec_GM) & BCA_GM >= Weighted_GM1 & BCA_GM >= Weighted_GM2 & BCA_GM >= GM50 & BCA_GM >= BEven_GM & BCA_GM > 0 | BCA_GM >= 1, Rec_GM := BCA_GM]
+PSC_Sales1_MO[is.na(Rec_GM) & Weighted_GM1 >= BCA_GM & Weighted_GM1 >= Weighted_GM2 & Weighted_GM1 >= GM50 & Weighted_GM1 >= BEven_GM & Weighted_GM1 > 0, Rec_GM := Weighted_GM1]
+PSC_Sales1_MO[is.na(Rec_GM) & Weighted_GM2 >= BCA_GM & Weighted_GM2 >= Weighted_GM1 & Weighted_GM2 >= GM50 & Weighted_GM2 >= BEven_GM & Weighted_GM2 > 0, Rec_GM := Weighted_GM2]
+PSC_Sales1_MO[is.na(Rec_GM) & GM95 - GM50 <= 0.05 & GM95 >= BEven_GM & GM95 > 0, Rec_GM := GM95]
+PSC_Sales1_MO[is.na(Rec_GM) & GM90 - GM50 <= 0.05 & GM90 >= BEven_GM & GM90 > 0, Rec_GM := GM90]
+PSC_Sales1_MO[is.na(Rec_GM) & GM85 - GM50 <= 0.06 & GM85 >= BEven_GM & GM85 > 0, Rec_GM := GM85]
+PSC_Sales1_MO[is.na(Rec_GM) & GM80 - GM50 <= 0.06 & GM80 >= BEven_GM & GM80 > 0, Rec_GM := GM80]
+PSC_Sales1_MO[is.na(Rec_GM) & GM75 - GM50 <= 0.07 & GM75 >= BEven_GM & GM75 > 0, Rec_GM := GM75]
+PSC_Sales1_MO[is.na(Rec_GM) & GM70 - GM50 <= 0.07 & GM70 >= BEven_GM & GM70 > 0, Rec_GM := GM70]
+PSC_Sales1_MO[is.na(Rec_GM) & GM65 - GM50 <= 0.08 & GM65 >= BEven_GM & GM65 > 0, Rec_GM := GM65]
+PSC_Sales1_MO[is.na(Rec_GM) & GM60 - GM50 <= 0.09 & GM60 >= BEven_GM & GM60 > 0, Rec_GM := GM60]
+PSC_Sales1_MO[is.na(Rec_GM) & GM55 - GM50 <= 0.10 & GM55 >= BEven_GM & GM55 > 0, Rec_GM := GM55]
+PSC_Sales1_MO[is.na(Rec_GM) & GM50 >= BEven_GM & GM50 > 0, Rec_GM := GM50]
+PSC_Sales1_MO[is.na(Rec_GM) & BEven_GM > 0, Rec_GM := BEven_GM]
+PSC_Sales1_MO[is.na(Rec_GM) & BEven_GM <= 0, Rec_GM := 0.05]
+
+# Create a tracker to know which Recommended GM logic was used
+
+PSC_Sales1_MO[maxGM - minGM <= 0.05 & maxGM > 0, Rec_Logic := "maxGM"]
+PSC_Sales1_MO[is.na(Rec_Logic) & BCA_GM >= Weighted_GM1 & BCA_GM >= Weighted_GM2 & BCA_GM >= GM50 & BCA_GM >= BEven_GM & BCA_GM > 0 | BCA_GM >= 1, Rec_Logic := "BCA_GM"]
+PSC_Sales1_MO[is.na(Rec_Logic) & Weighted_GM1 >= BCA_GM & Weighted_GM1 >= Weighted_GM2 & Weighted_GM1 >= GM50 & Weighted_GM1 >= BEven_GM & Weighted_GM1 > 0, Rec_Logic := "Weighted_GM1"]
+PSC_Sales1_MO[is.na(Rec_Logic) & Weighted_GM2 >= BCA_GM & Weighted_GM2 >= Weighted_GM1 & Weighted_GM2 >= GM50 & Weighted_GM2 >= BEven_GM & Weighted_GM2 > 0, Rec_Logic := "Weighted_GM2"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM95 - GM50 <= 0.05 & GM95 >= BEven_GM & GM95 > 0, Rec_Logic := "GM95"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM90 - GM50 <= 0.05 & GM90 >= BEven_GM & GM90 > 0, Rec_Logic := "GM90"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM85 - GM50 <= 0.06 & GM85 >= BEven_GM & GM85 > 0, Rec_Logic := "GM85"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM80 - GM50 <= 0.06 & GM80 >= BEven_GM & GM80 > 0, Rec_Logic := "GM80"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM75 - GM50 <= 0.07 & GM75 >= BEven_GM & GM75 > 0, Rec_Logic := "GM75"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM70 - GM50 <= 0.07 & GM70 >= BEven_GM & GM70 > 0, Rec_Logic := "GM70"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM65 - GM50 <= 0.08 & GM65 >= BEven_GM & GM65 > 0, Rec_Logic := "GM65"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM60 - GM50 <= 0.09 & GM60 >= BEven_GM & GM60 > 0, Rec_Logic := "GM60"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM55 - GM50 <= 0.10 & GM55 >= BEven_GM & GM55 > 0, Rec_Logic := "GM55"]
+PSC_Sales1_MO[is.na(Rec_Logic) & GM50 >= BEven_GM & GM50 > 0, Rec_Logic := "GM50"]
+PSC_Sales1_MO[is.na(Rec_Logic) & BEven_GM > 0, Rec_Logic := "BEven_GM"]
+PSC_Sales1_MO[is.na(Rec_Logic) & BEven_GM <= 0, Rec_Logic := "Leftovers"]
+
+temp <- PSC_Sales1_MO %>% group_by(Rec_Logic) %>% summarise(n = n()) %>% arrange(desc(n))
+
+# Create a new data frame that ensures every unique product in PSC_Sales has a Customer Decile
+# Without doing this, we may have some CAT_NOs that only have a few customer deciles defined
+
+tic("Create Full PSC Price Matrix")
+PSC_Matrix <- expand(PSC_Sales1_MO, CAT_NO, CUST_DECILE)
+setDT(PSC_Matrix)
+PSC_Matrix <- merge(x = PSC_Matrix, y = PSC_Sales1_MO, 
+                    by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+
+# setDT(PSC_Matrix)
+# PSC_Matrix[is.na(Rec_GM), Rec_GM := shift(Rec_GM, n = 1, type = "lag"), by = CAT_NO]
+
+PSC_Matrix <- PSC_Matrix %>% arrange(CAT_NO, CUST_DECILE) %>% group_by(CAT_NO)
+
+PSC_Matrix <- PSC_Matrix %>% mutate(lag = lag(Rec_GM),
+                                    lead = lead(Rec_GM))
+
+while (any(is.na(PSC_Matrix$Rec_GM))) {
+  PSC_Matrix <- mutate(PSC_Matrix, Rec_GM = ifelse(!is.na(lag), lag, ifelse(!is.na(lead), lead, Rec_GM)))
+  PSC_Matrix <- mutate(PSC_Matrix, lag = lag(Rec_GM), lead = lead(Rec_GM))
+}
+
+PSC_Matrix$lag <- NULL
+PSC_Matrix$lead <- NULL
+
+toc()
 
 ######################################################################
 
@@ -510,44 +593,45 @@ setDT(PSC_floor)
 setDT(PSC_Sales_IL)
 PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_floor, by = c("CUST_DECILE", "CAT_NO"), all.x = T)
 
+# Tallies no longer required:
 # Count the number of transactions above and below each Price Structuring Approach Output
 
-PSC_Sales_IL$weighted_GM_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM1)
+# PSC_Sales_IL$weighted_GM_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM1)
 
-PSC_Sales_IL$weighted_GM_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM1)
+# PSC_Sales_IL$weighted_GM_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM1)
 
-PSC_Sales_IL$weighted_GM2_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM2)
+# PSC_Sales_IL$weighted_GM2_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM2)
 
-PSC_Sales_IL$weighted_GM2_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM2)
+# PSC_Sales_IL$weighted_GM2_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$weighted_GM2)
 
-PSC_Sales_IL$BCA_GM_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$BCA_GM)
+# PSC_Sales_IL$BCA_GM_aboveCount <- tally_above(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$BCA_GM)
 
-PSC_Sales_IL$BCA_GM_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$BCA_GM)
+# PSC_Sales_IL$BCA_GM_belowCount <- tally_below(PSC_Sales_IL$GM_Perc, PSC_Sales_IL$BCA_GM)
 
-PSC_tallies <- PSC_Sales_IL %>% 
-  group_by(CAT_NO) %>% 
-  summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
-            weighted_GM_belowCount = sum(weighted_GM_belowCount),
-            weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
-            weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
-            BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
-            BCA_GM_belowCount = sum(BCA_GM_belowCount))
+# PSC_tallies <- PSC_Sales_IL %>% 
+#   group_by(CAT_NO) %>% 
+#   summarise(weighted_GM_aboveCount = sum(weighted_GM_aboveCount),
+#             weighted_GM_belowCount = sum(weighted_GM_belowCount),
+#             weighted_GM2_aboveCount = sum(weighted_GM2_aboveCount),
+#             weighted_GM2_belowCount = sum(weighted_GM2_belowCount),
+#             BCA_GM_aboveCount = sum(BCA_GM_aboveCount),
+#             BCA_GM_belowCount = sum(BCA_GM_belowCount))
 
-setDT(PSC_tallies)
-setDT(PSC_Sales_IL)
-PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_tallies, by = "CAT_NO", all.x = T)
+# setDT(PSC_tallies)
+# setDT(PSC_Sales_IL)
+# PSC_Sales_IL <- merge(x = PSC_Sales_IL, y = PSC_tallies, by = "CAT_NO", all.x = T)
 
-PSC_Sales_IL <- PSC_Sales_IL %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
-                                        -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
-                                        -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
+# PSC_Sales_IL <- PSC_Sales_IL %>% select(-weighted_GM_aboveCount.x, -weighted_GM_belowCount.x,
+#                                         -weighted_GM2_aboveCount.x, -weighted_GM2_belowCount.x,
+#                                         -BCA_GM_aboveCount.x, -BCA_GM_belowCount.x)
 
-names(PSC_Sales_IL)
-names(PSC_Sales_IL)[18] <- "weighted_GM_aboveCount"
-names(PSC_Sales_IL)[19] <- "weighted_GM_belowCount"
-names(PSC_Sales_IL)[20] <- "weighted_GM2_aboveCount"
-names(PSC_Sales_IL)[21] <- "weighted_GM2_belowCount"
-names(PSC_Sales_IL)[22] <- "BCA_GM_aboveCount"
-names(PSC_Sales_IL)[23] <- "BCA_GM_belowCount"
+# names(PSC_Sales_IL)
+# names(PSC_Sales_IL)[18] <- "weighted_GM_aboveCount"
+# names(PSC_Sales_IL)[19] <- "weighted_GM_belowCount"
+# names(PSC_Sales_IL)[20] <- "weighted_GM2_aboveCount"
+# names(PSC_Sales_IL)[21] <- "weighted_GM2_belowCount"
+# names(PSC_Sales_IL)[22] <- "BCA_GM_aboveCount"
+# names(PSC_Sales_IL)[23] <- "BCA_GM_belowCount"
 
 # Add in decile GMs for reference
 
@@ -571,7 +655,7 @@ PSC_Sales_IL <- PSC_Sales_IL %>%
          CAT_QTY = sum(QTY, na.rm = T),
          BEven_GM = (CAT_Revenue - CAT_Costs) / CAT_Revenue)
 
-PSC_Sales_IL <- PSC_Sales_IL %>% 
+PSC_Sales1_MO_IL <- PSC_Sales_IL %>% 
   group_by(CAT_NO, CUST_DECILE) %>% 
   summarise(CAT_Revenue = mean(CAT_Revenue, na.rm = T),
             CAT_Costs = mean(CAT_Costs, na.rm = T),
