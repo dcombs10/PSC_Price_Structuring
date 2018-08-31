@@ -309,6 +309,11 @@ while (any(is.na(PSC_Matrix$Rec_GM))) {
 PSC_Matrix$lag <- NULL
 PSC_Matrix$lead <- NULL
 
+# Need logic to ensure that lower decile customers never receive better GM targets
+if (PSC_Matrix$Rec_GM > lag(PSC_Matrix$Rec_GM)) {
+  PSC_Matrix[]
+}
+
 toc()
 
 
@@ -619,6 +624,18 @@ toc()
 export(PSC_Matrix, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs.csv")
 export(PSC_Matrix_MO, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_MO.csv")
 export(PSC_Matrix_IL, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_IL.csv")
+
+# What-if Analysis
+PSC_Sales %>% filter(year(DATE) == 2018)
+
+setDT(PSC_Sales)
+setDT(PSC_Matrix)
+marge(PSC_Sales, PSC_Matrix[, c("CAT_NO", "CUST_DECILE", "Rec_GM")], by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+
+# Create a best case scenario (Rec_GM), a likely scenario (RAND with the mean around 8%), and worse case (using highest discount for that customer decile)
+# This will involve using the Rec_GM and Costs to calculate Revenue, then divide by QTY to get Price, then apply discounting to the price, then working back to the new revenue and comparing the impact
+
+
 
 ############################################################################################
 ############################################################################################
