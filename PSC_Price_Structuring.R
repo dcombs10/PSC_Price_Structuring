@@ -285,12 +285,25 @@ PSC_Sales1[is.na(Rec_Logic) & GM50 >= BEven_GM & GM50 > 0, Rec_Logic := "GM50"]
 PSC_Sales1[is.na(Rec_Logic) & BEven_GM > 0, Rec_Logic := "BEven_GM"]
 PSC_Sales1[is.na(Rec_Logic) & BEven_GM <= 0, Rec_Logic := "Leftovers"]
 
+tic("Bubbling Rec_GMs")
+PSC_Sales1 <- PSC_Sales1 %>% group_by(CAT_NO) %>% arrange(CAT_NO, CUST_DECILE)
+
+PSC_Sales1 <- mutate(PSC_Sales1, lag = lag(Rec_GM))
+
+while (any(PSC_Sales1$Rec_GM < PSC_Sales1$lag, na.rm = T)) {
+  PSC_Sales1 <- mutate(PSC_Sales1, Rec_GM = ifelse(!is.na(lag), ifelse(Rec_GM < lag, lag, Rec_GM), Rec_GM))
+  PSC_Sales1 <- mutate(PSC_Sales1, lag = lag(Rec_GM))
+}
+
+PSC_Sales1$lag <- NULL
+
+toc()
+
 temp <- PSC_Sales1 %>% group_by(Rec_Logic) %>% summarise(n = n()) %>% arrange(desc(n))
 
 # Create a new data frame that ensures every unique product in PSC_Sales has a Customer Decile
 # Without doing this, we may have some CAT_NOs that only have a few customer deciles defined
 
-tic("Create Full PSC Price Matrix")
 PSC_Matrix <- expand(PSC_Sales1, CAT_NO, CUST_DECILE)
 setDT(PSC_Matrix)
 PSC_Matrix <- merge(x = PSC_Matrix, y = PSC_Sales1, 
@@ -310,12 +323,9 @@ PSC_Matrix$lag <- NULL
 PSC_Matrix$lead <- NULL
 
 # Need logic to ensure that lower decile customers never receive better GM targets
-if (PSC_Matrix$Rec_GM > lag(PSC_Matrix$Rec_GM)) {
-  PSC_Matrix[]
-}
-
-toc()
-
+setDT(PSC_Matrix)
+PSC_Matrix[order(CAT_NO, CUST_DECILE)]
+PSC_Matrix[Rec_GM < shift(Rec_GM, n = 1, type = "lag"), Rec_GM := shift(Rec_GM, n = 1, type = "lag"), by = CAT_NO]
 
 ######################################################################
 
@@ -441,6 +451,20 @@ PSC_Sales1_MO[is.na(Rec_Logic) & GM55 - GM50 <= 0.10 & GM55 >= BEven_GM & GM55 >
 PSC_Sales1_MO[is.na(Rec_Logic) & GM50 >= BEven_GM & GM50 > 0, Rec_Logic := "GM50"]
 PSC_Sales1_MO[is.na(Rec_Logic) & BEven_GM > 0, Rec_Logic := "BEven_GM"]
 PSC_Sales1_MO[is.na(Rec_Logic) & BEven_GM <= 0, Rec_Logic := "Leftovers"]
+
+tic("Bubbling Rec_GMs - MO")
+PSC_Sales1_MO <- PSC_Sales1_MO %>% group_by(CAT_NO) %>% arrange(CAT_NO, CUST_DECILE)
+
+PSC_Sales1_MO <- mutate(PSC_Sales1_MO, lag = lag(Rec_GM))
+
+while (any(PSC_Sales1_MO$Rec_GM < PSC_Sales1_MO$lag, na.rm = T)) {
+  PSC_Sales1_MO <- mutate(PSC_Sales1_MO, Rec_GM = ifelse(!is.na(lag), ifelse(Rec_GM < lag, lag, Rec_GM), Rec_GM))
+  PSC_Sales1_MO <- mutate(PSC_Sales1_MO, lag = lag(Rec_GM))
+}
+
+PSC_Sales1_MO$lag <- NULL
+
+toc()
 
 temp <- PSC_Sales1_MO %>% group_by(Rec_Logic) %>% summarise(n = n()) %>% arrange(desc(n))
 
@@ -593,6 +617,20 @@ PSC_Sales1_IL[is.na(Rec_Logic) & GM50 >= BEven_GM & GM50 > 0, Rec_Logic := "GM50
 PSC_Sales1_IL[is.na(Rec_Logic) & BEven_GM > 0, Rec_Logic := "BEven_GM"]
 PSC_Sales1_IL[is.na(Rec_Logic) & BEven_GM <= 0, Rec_Logic := "Leftovers"]
 
+tic("Bubbling Rec_GMs - IL")
+PSC_Sales1_IL <- PSC_Sales1_IL %>% group_by(CAT_NO) %>% arrange(CAT_NO, CUST_DECILE)
+
+PSC_Sales1_IL <- mutate(PSC_Sales1_IL, lag = lag(Rec_GM))
+
+while (any(PSC_Sales1_IL$Rec_GM < PSC_Sales1_IL$lag, na.rm = T)) {
+  PSC_Sales1_IL <- mutate(PSC_Sales1_IL, Rec_GM = ifelse(!is.na(lag), ifelse(Rec_GM < lag, lag, Rec_GM), Rec_GM))
+  PSC_Sales1_IL <- mutate(PSC_Sales1_IL, lag = lag(Rec_GM))
+}
+
+PSC_Sales1_IL$lag <- NULL
+
+toc()
+
 temp <- PSC_Sales1_IL %>% group_by(Rec_Logic) %>% summarise(n = n()) %>% arrange(desc(n))
 
 # Create a new data frame that ensures every unique product in PSC_Sales has a Customer Decile
@@ -621,16 +659,19 @@ toc()
 
 # EXPORT
 
-export(PSC_Matrix, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs.csv")
-export(PSC_Matrix_MO, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_MO.csv")
-export(PSC_Matrix_IL, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_IL.csv")
+export(PSC_Sales1, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs.csv")
+export(PSC_Sales1_MO, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_MO.csv")
+export(PSC_Sales1_IL, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_IL.csv")
 
 # What-if Analysis
-PSC_Sales %>% filter(year(DATE) == 2018)
+WhatIf <- PSC_Sales %>% filter(year(DATE) == 2018)
 
 setDT(PSC_Sales)
-setDT(PSC_Matrix)
-marge(PSC_Sales, PSC_Matrix[, c("CAT_NO", "CUST_DECILE", "Rec_GM")], by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+setDT(PSC_Sales1)
+WhatIf <- merge(PSC_Sales, PSC_Sales1[, c("CAT_NO", "CUST_DECILE", "Rec_GM")], by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+WhatIf$Target_Rev <- WhatIf$EXT_COST_REB / (1 - WhatIf$Rec_GM)
+WhatIf$Rev_Impact <- WhatIf$Target_Rev - WhatIf$EXT_SALES
+
 
 # Create a best case scenario (Rec_GM), a likely scenario (RAND with the mean around 8%), and worse case (using highest discount for that customer decile)
 # This will involve using the Rec_GM and Costs to calculate Revenue, then divide by QTY to get Price, then apply discounting to the price, then working back to the new revenue and comparing the impact
