@@ -329,9 +329,13 @@ WhatIf[Weighted_GM2 == 1, Weighted_GM2 := 0.9999]
 WhatIf[Rec_GM == 1, Rec_GM := 0.9999]
 
 WhatIf[!is.na(BCA_GM) & BCA_GM > GM_Perc & (BCA_GM - GM_Perc) <= 0.2, BCA_Impact := (Costs / (1 - BCA_GM)) - Revenue]
+WhatIf[!is.na(BCA_GM) & BCA_GM > GM_Perc & (BCA_GM - GM_Perc) > 0.2, BCA_Impact := (Costs / (1 - (GM_Perc + 0.2))) - Revenue]
 WhatIf[!is.na(Weighted_GM1) & Weighted_GM1 > GM_Perc & (Weighted_GM1 - GM_Perc) <= 0.2, Weighted1_Impact := (Costs / (1 - Weighted_GM1)) - Revenue]
+WhatIf[!is.na(Weighted_GM1) & Weighted_GM1 > GM_Perc & (Weighted_GM1 - GM_Perc) > 0.2, Weighted1_Impact := (Costs / (1 - (GM_Perc + 0.2))) - Revenue]
 WhatIf[!is.na(Weighted_GM2) & Weighted_GM2 > GM_Perc & (Weighted_GM2 - GM_Perc) <= 0.2, Weighted2_Impact := (Costs / (1 - Weighted_GM2)) - Revenue]
+WhatIf[!is.na(Weighted_GM2) & Weighted_GM2 > GM_Perc & (Weighted_GM2 - GM_Perc) > 0.2, Weighted2_Impact := (Costs / (1 - (GM_Perc + 0.2))) - Revenue]
 WhatIf[!is.na(Rec_GM) & Rec_GM > GM_Perc & (Rec_GM - GM_Perc) <= 0.2, Rec_Impact := (Costs / (1 - Rec_GM)) - Revenue]
+WhatIf[!is.na(Rec_GM) & Rec_GM > GM_Perc & (Rec_GM - GM_Perc) > 0.2, Rec_Impact := (Costs / (1 - (GM_Perc + 0.2))) - Revenue]
 
 # WhatIf$BCA_Impact <- ifelse(!is.na(WhatIf$BCA_GM) & WhatIf$BCA_GM > WhatIf$GM_Perc,
 #                            (WhatIf$Costs / (1 - WhatIf$BCA_GM)) - WhatIf$Revenue, 0)
