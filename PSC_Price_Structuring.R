@@ -323,25 +323,30 @@ setDT(WhatIf)
 setDT(PSC_Sales1)
 WhatIf <- merge(WhatIf, PSC_Sales1[, c("CAT_NO", "CUST_DECILE", "BCA_GM", "Weighted_GM1", "Weighted_GM2", "Rec_GM")], by = c("CAT_NO", "CUST_DECILE"), all.x = T)
 
-# WhatIf[BCA_GM == 1, BCA_GM := 0.9999]
-# WhatIf[Weighted_GM1 == 1, Weighted_GM1 := 0.9999]
-# WhatIf[Weighted_GM2 == 1, Weighted_GM2 := 0.9999]
-# WhatIf[Rec_GM == 1, Rec_GM := 0.9999]
+WhatIf[BCA_GM == 1, BCA_GM := 0.9999]
+WhatIf[Weighted_GM1 == 1, Weighted_GM1 := 0.9999]
+WhatIf[Weighted_GM2 == 1, Weighted_GM2 := 0.9999]
+WhatIf[Rec_GM == 1, Rec_GM := 0.9999]
 
-WhatIf$BCA_Impact <- ifelse(!is.na(WhatIf$BCA_GM) & WhatIf$BCA_GM > WhatIf$GM_Perc,
-                            (WhatIf$Costs / (1 - WhatIf$BCA_GM)) - WhatIf$Revenue, 0)
+WhatIf[!is.na(BCA_GM) & BCA_GM > GM_Perc & (BCA_GM - GM_Perc) <= 0.2, BCA_Impact := (Costs / (1 - BCA_GM)) - Revenue]
+WhatIf[!is.na(Weighted_GM1) & Weighted_GM1 > GM_Perc & (Weighted_GM1 - GM_Perc) <= 0.2, Weighted1_Impact := (Costs / (1 - Weighted_GM1)) - Revenue]
+WhatIf[!is.na(Weighted_GM2) & Weighted_GM2 > GM_Perc & (Weighted_GM2 - GM_Perc) <= 0.2, Weighted2_Impact := (Costs / (1 - Weighted_GM2)) - Revenue]
+WhatIf[!is.na(Rec_GM) & Rec_GM > GM_Perc & (Rec_GM - GM_Perc) <= 0.2, Rec_Impact := (Costs / (1 - Rec_GM)) - Revenue]
 
-WhatIf$Weighted1_Impact <- ifelse(!is.na(WhatIf$Weighted_GM1) & WhatIf$Weighted_GM1 > WhatIf$GM_Perc,
-                                  (WhatIf$Costs / (1 - WhatIf$Weighted_GM1)) - WhatIf$Revenue, 0)
+# WhatIf$BCA_Impact <- ifelse(!is.na(WhatIf$BCA_GM) & WhatIf$BCA_GM > WhatIf$GM_Perc,
+#                            (WhatIf$Costs / (1 - WhatIf$BCA_GM)) - WhatIf$Revenue, 0)
 
-WhatIf$Weighted2_Impact <- ifelse(!is.na(WhatIf$Weighted_GM2) & WhatIf$Weighted_GM1 > WhatIf$GM_Perc,
-                                  (WhatIf$Costs / (1 - WhatIf$Weighted_GM2)) - WhatIf$Revenue, 0)
+# WhatIf$Weighted1_Impact <- ifelse(!is.na(WhatIf$Weighted_GM1) & WhatIf$Weighted_GM1 > WhatIf$GM_Perc,
+#                                   (WhatIf$Costs / (1 - WhatIf$Weighted_GM1)) - WhatIf$Revenue, 0)
 
-WhatIf$Rec_Impact <- ifelse(!is.na(WhatIf$Rec_GM) & WhatIf$Rec_GM > WhatIf$GM_Perc,
-                            (WhatIf$Costs / (1 - WhatIf$Rec_GM)), 0)
+# WhatIf$Weighted2_Impact <- ifelse(!is.na(WhatIf$Weighted_GM2) & WhatIf$Weighted_GM1 > WhatIf$GM_Perc,
+#                                   (WhatIf$Costs / (1 - WhatIf$Weighted_GM2)) - WhatIf$Revenue, 0)
 
-WhatIf1 <- WhatIf %>% filter(!is.infinite(BCA_Impact), !is.infinite(Weighted1_Impact),
-                             !is.infinite(Weighted2_Impact), !is.infinite(Rec_Impact))
+# WhatIf$Rec_Impact <- ifelse(!is.na(WhatIf$Rec_GM) & WhatIf$Rec_GM > WhatIf$GM_Perc,
+#                             (WhatIf$Costs / (1 - WhatIf$Rec_GM)), 0)
+
+# WhatIf1 <- WhatIf %>% filter(!is.infinite(BCA_Impact), !is.infinite(Weighted1_Impact),
+#                              !is.infinite(Weighted2_Impact), !is.infinite(Rec_Impact))
 
 temp <- WhatIf1 %>% summarise(BCA_Impact = sum(BCA_Impact, na.rm = T),
                              Weighted1_Impact = sum(Weighted1_Impact, na.rm = T),
