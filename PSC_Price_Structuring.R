@@ -172,7 +172,17 @@ PSC_Sales <- PSC_Sales %>%
   mutate(weighted_GM2 = weighted_mean(GM_Perc, QTY))
 
 ## Best Customer Approach
-PSC_orig <- PSC_Sales %>% select(CUST_DECILE, CAT_NO, QTY, GM_Perc)
+
+PSC_Sales1 <- PSC_Sales %>% 
+  filter(!grepl("999", CAT_NO)) %>% 
+  group_by(CAT_NO, CUST_NO) %>% 
+  summarise(CUST_DECILE = mean(CUST_DECILE, na.rm = T),
+            Revenue = sum(EXT_SALES, na.rm = T),
+            Costs = sum(EXT_COST_REB, na.rm = T),
+            QTY = sum(QTY, na.rm = T),
+            GM_Perc = (Revenue - Costs) / Revenue)
+
+PSC_orig <- PSC_Sales1 %>% select(CUST_DECILE, CAT_NO, QTY, GM_Perc)
 PSC_agg <- aggregate(QTY ~ CUST_DECILE + CAT_NO, PSC_orig, max)
 setDT(PSC_orig)
 setDT(PSC_agg)
@@ -189,10 +199,11 @@ while (any(PSC_floor$floorGM < PSC_floor$lag, na.rm = T)) {
   PSC_floor <- mutate(PSC_floor, floorGM = ifelse(!is.na(lag), ifelse(floorGM < lag, lag, floorGM), floorGM))
   PSC_floor <- mutate(PSC_floor, lag = lag(floorGM))
 }
-toc()
 
 names(PSC_floor)[3] <- "BCA_GM"
 PSC_floor$lag <- NULL
+
+toc()
 
 setDT(PSC_floor)
 setDT(PSC_Sales)
