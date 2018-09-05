@@ -301,6 +301,54 @@ toc()
 
 temp <- PSC_Sales1 %>% group_by(Rec_Logic) %>% summarise(n = n()) %>% arrange(desc(n))
 
+# What-if Analysis
+setDT(PSC_Sales)
+WhatIf <- PSC_Sales[, j = list(CUST_DECILE = mean(CUST_DECILE, na.rm = T),
+                               Revenue = sum(EXT_SALES, na.rm = T),
+                               Costs = sum(EXT_COST_REB, na.rm = T),
+                               QTY = sum(QTY, na.rm = T),
+                               GM_Perc = (Revenue - Costs) / Revenue), 
+                    by = list(CAT_NO, CUST_NO)]
+
+WhatIf <- PSC_Sales %>% 
+  filter(!grepl("999", CAT_NO)) %>% 
+  group_by(CAT_NO, CUST_NO) %>% 
+  summarise(CUST_DECILE = mean(CUST_DECILE, na.rm = T),
+            Revenue = sum(EXT_SALES, na.rm = T),
+            Costs = sum(EXT_COST_REB, na.rm = T),
+            QTY = sum(QTY, na.rm = T),
+            GM_Perc = (Revenue - Costs) / Revenue)
+
+setDT(WhatIf)
+setDT(PSC_Sales1)
+WhatIf <- merge(WhatIf, PSC_Sales1[, c("CAT_NO", "CUST_DECILE", "BCA_GM", "Weighted_GM1", "Weighted_GM2", "Rec_GM")], by = c("CAT_NO", "CUST_DECILE"), all.x = T)
+
+# WhatIf[BCA_GM == 1, BCA_GM := 0.9999]
+# WhatIf[Weighted_GM1 == 1, Weighted_GM1 := 0.9999]
+# WhatIf[Weighted_GM2 == 1, Weighted_GM2 := 0.9999]
+# WhatIf[Rec_GM == 1, Rec_GM := 0.9999]
+
+WhatIf$BCA_Impact <- ifelse(!is.na(WhatIf$BCA_GM) & WhatIf$BCA_GM > WhatIf$GM_Perc,
+                            (WhatIf$Costs / (1 - WhatIf$BCA_GM)) - WhatIf$Revenue, 0)
+
+WhatIf$Weighted1_Impact <- ifelse(!is.na(WhatIf$Weighted_GM1) & WhatIf$Weighted_GM1 > WhatIf$GM_Perc,
+                                  (WhatIf$Costs / (1 - WhatIf$Weighted_GM1)) - WhatIf$Revenue, 0)
+
+WhatIf$Weighted2_Impact <- ifelse(!is.na(WhatIf$Weighted_GM2) & WhatIf$Weighted_GM1 > WhatIf$GM_Perc,
+                                  (WhatIf$Costs / (1 - WhatIf$Weighted_GM2)) - WhatIf$Revenue, 0)
+
+WhatIf$Rec_Impact <- ifelse(!is.na(WhatIf$Rec_GM) & WhatIf$Rec_GM > WhatIf$GM_Perc,
+                            (WhatIf$Costs / (1 - WhatIf$Rec_GM)), 0)
+
+WhatIf1 <- WhatIf %>% filter(!is.infinite(BCA_Impact), !is.infinite(Weighted1_Impact),
+                             !is.infinite(Weighted2_Impact), !is.infinite(Rec_Impact))
+
+temp <- WhatIf1 %>% summarise(BCA_Impact = sum(BCA_Impact, na.rm = T),
+                             Weighted1_Impact = sum(Weighted1_Impact, na.rm = T),
+                             Weighted2_Impact = sum(Weighted2_Impact, na.rm = T),
+                             Rec_Impact = sum(Rec_Impact, na.rm = T))
+
+
 # Create a new data frame that ensures every unique product in PSC_Sales has a Customer Decile
 # Without doing this, we may have some CAT_NOs that only have a few customer deciles defined
 
@@ -321,11 +369,6 @@ while (any(is.na(PSC_Matrix$Rec_GM))) {
 
 PSC_Matrix$lag <- NULL
 PSC_Matrix$lead <- NULL
-
-# Need logic to ensure that lower decile customers never receive better GM targets
-setDT(PSC_Matrix)
-PSC_Matrix[order(CAT_NO, CUST_DECILE)]
-PSC_Matrix[Rec_GM < shift(Rec_GM, n = 1, type = "lag"), Rec_GM := shift(Rec_GM, n = 1, type = "lag"), by = CAT_NO]
 
 ######################################################################
 
@@ -663,14 +706,6 @@ export(PSC_Sales1, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricin
 export(PSC_Sales1_MO, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_MO.csv")
 export(PSC_Sales1_IL, "C:/Users/danco/Documents/FirstDiscovery/Customers/PSC/Pricing_Outputs_IL.csv")
 
-# What-if Analysis
-WhatIf <- PSC_Sales %>% filter(year(DATE) == 2018)
-
-setDT(PSC_Sales)
-setDT(PSC_Sales1)
-WhatIf <- merge(PSC_Sales, PSC_Sales1[, c("CAT_NO", "CUST_DECILE", "Rec_GM")], by = c("CAT_NO", "CUST_DECILE"), all.x = T)
-WhatIf$Target_Rev <- WhatIf$EXT_COST_REB / (1 - WhatIf$Rec_GM)
-WhatIf$Rev_Impact <- WhatIf$Target_Rev - WhatIf$EXT_SALES
 
 
 # Create a best case scenario (Rec_GM), a likely scenario (RAND with the mean around 8%), and worse case (using highest discount for that customer decile)
