@@ -303,12 +303,12 @@ temp <- PSC_Sales1 %>% group_by(Rec_Logic) %>% summarise(n = n()) %>% arrange(de
 
 # What-if Analysis
 setDT(PSC_Sales)
-WhatIf <- PSC_Sales[, j = list(CUST_DECILE = mean(CUST_DECILE, na.rm = T),
-                               Revenue = sum(EXT_SALES, na.rm = T),
-                               Costs = sum(EXT_COST_REB, na.rm = T),
-                               QTY = sum(QTY, na.rm = T),
-                               GM_Perc = (Revenue - Costs) / Revenue), 
-                    by = list(CAT_NO, CUST_NO)]
+WhatIf <- PSC_Sales[, .(CAT_NO, CUST_NO, CUST_DECILE,
+                        Revenue = sum(EXT_SALES, na.rm = T),
+                        Costs = sum(EXT_COST_REB, na.rm = T),
+                        QTY = sum(QTY, na.rm = T),
+                        GM_Perc = (Revenue - Costs) / Revenue), 
+                    by = .(CAT_NO, CUST_NO)]
 
 WhatIf <- PSC_Sales %>% 
   filter(!grepl("999", CAT_NO)) %>% 
