@@ -133,7 +133,7 @@ setDT(temp)
 setDT(PSC_Sales)
 PSC_Sales <- merge(x = PSC_Sales, y = temp[ , c("CUST_NO", "CUST_RANK")], by = "CUST_NO", all.x = T)
 rm(temp)
-
+PSC_Sales$CUST_DECILE <- 0
 PSC_Sales$CUST_DECILE <- sapply(PSC_Sales$CUST_RANK, custDeciles)
 toc()
 
@@ -172,18 +172,19 @@ PSC_Sales <- PSC_Sales %>%
   mutate(weighted_GM2 = weighted_mean(GM_Perc, QTY))
 
 ## Best Customer Approach
-
+##################################################
+# Really focus on what aggregate does and understanding if the creation of PSC_Sales1 is necessary at this point
 PSC_Sales1 <- PSC_Sales %>% 
   filter(!grepl("999", CAT_NO)) %>% 
-  group_by(CAT_NO, CUST_NO) %>% 
-  summarise(CUST_DECILE = mean(CUST_DECILE, na.rm = T),
-            Revenue = sum(EXT_SALES, na.rm = T),
+  group_by(CAT_NO, CUST_NO, CUST_DECILE) %>% 
+  summarise(Revenue = sum(EXT_SALES, na.rm = T),
             Costs = sum(EXT_COST_REB, na.rm = T),
             QTY = sum(QTY, na.rm = T),
             GM_Perc = (Revenue - Costs) / Revenue)
 
 PSC_orig <- PSC_Sales1 %>% select(CUST_DECILE, CAT_NO, QTY, GM_Perc)
 PSC_agg <- aggregate(QTY ~ CUST_DECILE + CAT_NO, PSC_orig, max)
+##################################################
 setDT(PSC_orig)
 setDT(PSC_agg)
 PSC_floor <- merge(PSC_agg, PSC_orig)
